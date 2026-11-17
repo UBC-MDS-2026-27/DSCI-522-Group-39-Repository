@@ -2,60 +2,55 @@
 
 ## Authors
 
-- Tahir Hussain, Jaylon Huang, Rakshit Kapoor, Teeba Obaid
+Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid
 
 ## Summary
 
-This project will investigate whether passenger characteristics can be used to predict survival on the Titanic. We will build and evaluate a basic classification model using publicly available passenger data. Results and their implications will be added after the analysis is complete.
+This project asks whether passenger information can be used to predict survival on the Titanic. We plan to build and evaluate a basic classification model using a publicly available passenger dataset. The analysis is still in progress, so this README does not yet report model results. Any eventual patterns should be interpreted as associations in this historical dataset, not as evidence of cause and effect or as a model for real-world decisions.
 
 ## Data
 
-The analysis will use a publicly available Titanic passenger dataset. The report will document the original source, its license, the variables used, and the steps for downloading a copy to `data/raw/`. Cleaned data will be saved in `data/processed/`.
+The project will use a publicly available Titanic passenger dataset. The analysis report will identify and cite the data source, describe the observations and variables used, and document how the data is downloaded to `data/raw/` and prepared for analysis in `data/processed/`.
 
 ## How to run the analysis
 
-The project uses Python, `uv` for environment management, and Quarto to render the report.
+The project uses Python, [uv](https://docs.astral.sh/uv/) to manage the Python environment, and [Quarto](https://quarto.org/) to render the report. Install [uv](https://docs.astral.sh/uv/getting-started/installation/), Python 3.12 or newer, and [Quarto](https://quarto.org/docs/get-started/) first. These tools are installed separately.
 
-1. Clone the repository and enter the project directory:
+From a terminal, clone the repository and enter its directory:
 
-   ```sh
-   git clone https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository.git
-   cd DSCI-522-Group-39-Repository
-   ```
+```sh
+git clone https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository.git
+cd DSCI-522-Group-39-Repository
+```
 
-2. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and [Quarto](https://quarto.org/docs/get-started/).
+Create the project environment from the committed dependency files:
 
-3. Create the project environment:
+```sh
+uv sync --locked
+```
 
-   ```sh
-   uv sync
-   ```
+Render the Quarto project from its root directory:
 
-4. Render the report:
+```sh
+uv run quarto render
+```
 
-   ```sh
-   quarto render analysis/titanic-survival-prediction.qmd
-   ```
-
-The setup and render commands will work once the corresponding environment files and report are in the repository.
+Rendering requires an internet connection if the analysis needs to download the dataset. The report and data-download workflow are under development; update these instructions if their paths or behavior change.
 
 ## Dependencies
 
-Python dependencies are managed with `uv` and will be listed in `pyproject.toml`. Quarto must also be installed to render the report.
+The project uses Python 3.12 or newer and the Python packages listed in [`pyproject.toml`](pyproject.toml), with exact resolved versions recorded in [`uv.lock`](uv.lock). Quarto must also be installed separately.
 
 ## Licenses
 
-- Project code: MIT License.
-- Project report: Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0).
-
-License texts will be provided in `LICENSE.md`.
+The intended licenses are the MIT License for project code and the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License (CC BY-NC-ND 4.0) for the report. The corresponding license texts and team copyright attribution should be maintained in [`LICENSE.md`](LICENSE.md).
 
 ## Generative AI use
 
-Generative AI was used to help draft this README. The team is responsible for reviewing and verifying all project materials.
+Generative AI assisted with drafting this README and the project contribution and conduct documents. The authors are responsible for reviewing, correcting, and verifying all project content.
 
-Example prompt: “Create a README for our basic Titanic survival-prediction project, following the DSCI 522 Milestone 1 requirements.”
+Example prompt: “Fill the README, contributing guide, and code of conduct based on the examples shared, adapting them to our Titanic survival-prediction project.”
 
 ## Report
 
-The rendered report will be linked here when it is published: [add the rendered report URL].
+The report has not yet been rendered or published. Add a link to the rendered report here when it is available.
