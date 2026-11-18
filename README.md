@@ -6,11 +6,13 @@ Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid
 
 ## Summary
 
-This project asks whether passenger information can be used to predict survival on the Titanic. We plan to build and evaluate a basic classification model using a publicly available passenger dataset. The analysis is still in progress, so this README does not yet report model results. Any eventual patterns should be interpreted as associations in this historical dataset, not as evidence of cause and effect or as a model for real-world decisions.
+This project investigates whether passenger information can predict survival on the Titanic. The team is building and evaluating a basic classification model using a publicly available passenger dataset. The analysis is currently in progress, so this README does not yet report model results. We interpret observed patterns as associations in this historical dataset, not as evidence of cause and effect or as a basis for real-world decisions.
 
 ## Data
 
-The project will use a publicly available Titanic passenger dataset. The analysis report will identify and cite the data source, describe the observations and variables used, and document how the data is downloaded to `data/raw/` and prepared for analysis in `data/processed/`.
+The project uses a publicly available Titanic passenger dataset. The analysis report identifies and cites the data source, describes the observations and variables used, and documents how the data is downloaded to `data/raw/` and prepared for analysis in `data/processed/`.
+
+Data link: https://www.kaggle.com/competitions/titanic/data
 
 ## How to run the analysis
 
@@ -43,7 +45,7 @@ The project uses Python 3.12 or newer and the Python packages listed in [`pyproj
 
 ## Licenses
 
-The intended licenses are the MIT License for project code and the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License (CC BY-NC-ND 4.0) for the report. The corresponding license texts and team copyright attribution should be maintained in [`LICENSE.md`](LICENSE.md).
+The project uses the MIT License for project code and the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License (CC BY-NC-ND 4.0) for the report. The team maintains the corresponding license texts and copyright attribution in [`LICENSE.md`](LICENSE.md).
 
 ## Generative AI use
 
@@ -53,4 +55,4 @@ Example prompt: “Fill the README, contributing guide, and code of conduct base
 
 ## Report
 
-The report has not yet been rendered or published. Add a link to the rendered report here when it is available.
+The report is under development and is not yet rendered or published. The team is preparing to add a link to the rendered report here when it becomes available.
