@@ -1,2 +1,5 @@
 # Local Python environment
 .venv/
+
+#.DS_Store
+.DS_Store

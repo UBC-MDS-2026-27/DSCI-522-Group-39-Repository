@@ -12,6 +12,8 @@ This project investigates whether passenger information can predict survival on 
 
 The project uses a publicly available Titanic passenger dataset. The analysis report identifies and cites the data source, describes the observations and variables used, and documents how the data is downloaded to `data/raw/` and prepared for analysis in `data/processed/`.
 
+The dataset is split into 891 training records (12 columns, including the Survived target) and 418 test records (11 columns, without the target). Each row represents an individual passenger.
+
 Data link: https://www.kaggle.com/competitions/titanic/data
 
 ## How to run the analysis
