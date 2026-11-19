@@ -1,32 +1,45 @@
+
 # Code of Conduct
 
-## Our commitment
+**DSCI 522 — Group 39: Titanic Survival Prediction**
 
-We want this project to be a respectful, inclusive, and constructive learning environment. We welcome participation regardless of age, disability, ethnicity, gender identity or expression, nationality, race, religion, sexual orientation, socioeconomic background, or level of experience.
+## Our Commitment
 
-## Expected behavior
+Group 39 aims to create a collaborative learning environment where everyone can contribute ideas, ask questions, and participate in decisions without fear of judgment or exclusion. We respect differences in background, identity, experience, and perspective, recognizing that these differences can strengthen our work.
 
-Participants are expected to:
+## Working Together
 
-- Communicate respectfully and use welcoming, inclusive language.
-- Listen to different perspectives and give feedback that is specific and constructive.
-- Accept responsibility for mistakes and work toward resolving disagreements respectfully.
-- Respect privacy and avoid sharing personal information without permission.
+We expect all contributors to:
 
-## Unacceptable behavior
+- Treat one another respectfully, particularly during disagreements and code reviews.
+- Provide constructive feedback focused on the work rather than the individual.
+- Encourage equitable participation and acknowledge others' contributions.
+- Communicate challenges or changes in availability that may affect agreed responsibilities.
+- Take responsibility for mistakes and work collaboratively toward solutions.
+- Respect personal boundaries, privacy, and confidential information.
 
-Harassment, discrimination, intimidation, personal attacks, unwanted sexual attention, deliberately disruptive conduct, and publishing another person's private information without permission are not acceptable. This applies in repository discussions, issues, pull requests, project meetings, and other spaces where someone is representing the project.
+## Unacceptable Behaviour
 
-## Addressing concerns
+Harassment, discrimination, intimidation, personal attacks, offensive or exclusionary remarks, and sharing private information without permission are unacceptable.
 
-If you experience or observe behavior that conflicts with this Code of Conduct, contact a project maintainer privately through GitHub. If the concern involves that maintainer, contact another maintainer. Please include what happened, where and when it occurred, and any relevant links or context. Do not report sensitive details in a public issue.
+Deliberately disrupting discussions, dismissing others' contributions, repeatedly disregarding responsibilities without communication, and retaliating against anyone who raises a concern are also unacceptable.
 
-Maintainers will review reports promptly, handle them as confidentially as possible, and decide on an appropriate response. Responses may include a respectful reminder, removal or editing of inappropriate content, a temporary restriction from project spaces, or removal from the project. Anyone receiving a report is expected to avoid retaliation and to protect the reporter's privacy.
+## Reporting and Resolving Concerns
+
+Concerns should be reported privately to a designated Group 39 representative. If the concern involves that representative, it may be raised with another team member or the DSCI 522 instructional team.
+
+Reports will be handled fairly and as confidentially as reasonably possible. Where appropriate, the team will follow the conflict-resolution process established in its teamwork contract, seeking assistance from the instructor or teaching assistants when necessary.
+
+## Consequences
+
+Depending on the severity and circumstances, responses may include a reminder of expectations, a request to correct inappropriate behaviour, facilitated conflict resolution, or referral to the instructional team. Serious or repeated misconduct may result in restrictions on project participation where authorized by the course or university.
+
+Responses should be proportionate, fair, and free from retaliation.
 
 ## Scope
 
-This Code of Conduct applies to project spaces, including the repository, its issues and pull requests, and project meetings. It also applies in public spaces when a person is representing this project or its team.
+This Code of Conduct applies to all project-related activities, including GitHub discussions, issues, pull requests, code reviews, meetings, labs, Slack communication, and public interactions representing Group 39.
 
 ## Attribution
 
-This project-specific Code of Conduct was written with reference to the [Tidyverse Code of Conduct](https://github.com/tidyverse/tidyverse.org/blob/master/CODE_OF_CONDUCT.md), the [Contributor Covenant, version 1.4](https://www.contributor-covenant.org/version/1/4/code-of-conduct/), and [Project Include's guidance on Codes of Conduct](https://projectinclude.org/writing_cocs).
+This Code of Conduct was developed for DSCI 522 Group 39, drawing on our teamwork agreement and adapting principles from the [Tidyverse Code of Conduct](https://github.com/tidyverse/tidyverse.org/blob/master/CODE_OF_CONDUCT.md) and [Contributor Covenant, Version 1.4](https://www.contributor-covenant.org/version/1/4/code-of-conduct/).
