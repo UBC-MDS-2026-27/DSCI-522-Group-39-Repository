@@ -194,3 +194,374 @@ Passengers with no recorded age survived 29.4% of the time compared with 40.6% f
 
 **Decisions for missing data.** We fill in age using the median age of passengers with the same title, because titles such as "Master" (boys) and "Mrs" separate age groups far better than one overall median. We fill the missing ports with the most common port, and the single missing fare in the test file with the median fare of the same ticket class. For cabin we keep only a yes/no flag. All fill-in values are learned from the training data only and then applied unchanged to the test data, so no information leaks from the test file.
 
+## Comparing each feature with survival
+
+We now look at each feature on its own against survival. Throughout, the dashed line in the bar charts marks the overall survival rate of 38%.
+
+```{python}
+#| label: engineer-for-eda
+def extract_title(names):
+    """Pull the title (Mr, Mrs, ...) out of a passenger name and group the rare ones."""
+    t = names.str.extract(r" ([A-Za-z]+)\.", expand=False)
+    t = t.replace({"Mlle": "Miss", "Ms": "Miss", "Mme": "Mrs"})
+    return t.where(t.isin(["Mr", "Mrs", "Miss", "Master"]), "Rare")
+
+def add_simple_features(df):
+    """Features that need no learned values, so they are safe to build on any dataset."""
+    out = df.copy()
+    out["Title"] = extract_title(out["Name"])
+    out["FamilySize"] = out["SibSp"] + out["Parch"] + 1
+    out["IsAlone"] = (out["FamilySize"] == 1).astype(int)
+    out["HasCabin"] = out["Cabin"].notna().astype(int)
+    out["AgeMissing"] = out["Age"].isna().astype(int)
+    return out
+
+eda = add_simple_features(eda)
+```
+
+### Sex and passenger class
+
+::: {.panel-tabset}
+
+#### Sex {.unnumbered}
+
+```{python}
+#| label: plot-sex
+#| fig-alt: "Bar chart: 74% of women survived versus 19% of men."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, eda, "Sex", order=["female", "male"], xlabel="Sex", labels=["Female", "Male"])
+fig.tight_layout()
+plt.show()
+```
+
+#### Passenger class {.unnumbered}
+
+```{python}
+#| label: plot-class
+#| fig-alt: "Bar chart: survival falls from 63% in first class to 47% in second and 24% in third."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, eda, "Pclass", order=[1, 2, 3], xlabel="Passenger class",
+         labels=["First", "Second", "Third"])
+fig.tight_layout()
+plt.show()
+```
+
+#### Sex and class together {.unnumbered}
+
+```{python}
+#| label: plot-sex-class
+#| fig-alt: "Grouped bar chart: women in first and second class survived above 90%, women in third class 50%, while men survived 37%, 16% and 14% in first, second and third class."
+sc = eda.groupby(["Pclass", "Sex"])["Survived"].mean().unstack() * 100
+sc.index = ["First", "Second", "Third"]
+fig, ax = plt.subplots(figsize=(7, 4))
+sc[["female", "male"]].plot.bar(ax=ax, color=[SURV, DIED], rot=0, width=0.75)
+ax.set_ylim(0, 112)
+ax.set_xlabel("Passenger class")
+ax.set_ylabel("Survival rate (%)")
+ax.legend(["Female", "Male"], title="Sex", loc="upper right")
+for c in ax.containers:
+    ax.bar_label(c, fmt="%.0f%%", padding=2, fontsize=9)
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 4. Survival rate by sex, by passenger class and by both together. Use the tabs to switch between the three views.*
+
+Sex is the strongest single signal in the data. In the training data 74.2% of women survived compared with 18.9% of men (Figure 4, Sex tab). Survival also falls steadily with passenger class, from 63.0% in first class to 47.3% in second and 24.2% in third (Figure 4, Passenger class tab). Both patterns match historical accounts of the sinking, where women were prioritised for lifeboats and survival declined with social class [@hall1986; @elinder2012].
+
+The third tab, "Sex and class together", shows that the two effects combine. Almost all women in first class (96.8%) and second class (92.1%) survived, but only half of the women in third class (50.0%). Men in every class did poorly, from 36.9% in first class down to 13.5% in third. This is an interaction: the effect of class depends on sex. A model that can capture interactions, or that includes both features, should do much better than one that uses either alone.
+
+**Include in the model?** Yes, both sex and passenger class.
+
+### Age
+
+```{python}
+#| label: prep-age
+known_age = eda.dropna(subset=["Age"]).copy()
+known_age["AgeGroup"] = pd.cut(
+    known_age["Age"], [0, 12, 18, 35, 60, 100],
+    labels=["0-12", "13-18", "19-35", "36-60", "61+"],
+)
+```
+
+::: {.panel-tabset}
+
+#### Age distribution {.unnumbered}
+
+```{python}
+#| label: plot-age-density
+#| fig-alt: "Overlapping density curves of age for survivors and non-survivors, with an extra peak of survivors under 10."
+fig, ax = plt.subplots(figsize=(7.5, 4))
+sns.kdeplot(data=known_age, x="Age", hue="Outcome", palette=PALETTE, fill=True,
+            common_norm=False, alpha=0.4, ax=ax, clip=(0, 85))
+ax.set_xlabel("Age (years)")
+ax.set_ylabel("Density")
+fig.tight_layout()
+plt.show()
+```
+
+#### Survival by age group {.unnumbered}
+
+```{python}
+#| label: plot-age-group
+#| fig-alt: "Bar chart: survival is 58% for ages 0 to 12, about 40% between ages 13 and 60, and 23% for ages 61 and over."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, known_age, "AgeGroup", xlabel="Age group (years)")
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 5. Age distribution of survivors and non-survivors, and survival rate by age group. Use the tabs to switch views. Only passengers with a recorded age are shown.*
+
+The age distributions of survivors and non-survivors overlap heavily, but survivors have a clear extra bump of very young children (Figure 5, Age distribution tab). By group, 58.0% of children aged 12 or under survived, compared with 38.3% of passengers aged 19 to 35 and only 22.7% of those aged 61 or over (Figure 5, Survival by age group tab). The survival rate is nearly flat from age 19 to 60 (38.3% and 40.0%), so the age effect is concentrated in the youngest and oldest groups, which are small (69 and 22 passengers). A pattern like this shows up only weakly in a single correlation number.
+
+**Include in the model?** Age is a weak feature overall, so it will not be among our top-correlated features, but the child effect in Figure 5 is real. We keep age in the processed data as an optional feature to test in flexible models. It needs imputation for the 19.9% of passengers with no age.
+
+### Fare
+
+```{python}
+#| label: prep-fare
+eda["FareLog"] = np.log1p(eda["Fare"])
+eda["Class"] = eda["Pclass"].map({1: "First", 2: "Second", 3: "Third"})
+```
+
+::: {.panel-tabset}
+
+#### Fare distribution {.unnumbered}
+
+```{python}
+#| label: plot-fare-hist
+#| fig-alt: "Histograms of log fare for survivors and non-survivors, with survivors shifted toward higher fares."
+fig, ax = plt.subplots(figsize=(7.5, 4))
+sns.histplot(data=eda, x="FareLog", hue="Outcome", palette=PALETTE, bins=30,
+             element="step", stat="density", common_norm=False, alpha=0.35, ax=ax)
+ax.set_xlabel("Fare (log scale, log of 1 + pounds)")
+ax.set_ylabel("Density")
+fig.tight_layout()
+plt.show()
+```
+
+#### Fare within each class {.unnumbered}
+
+```{python}
+#| label: plot-fare-box
+#| fig-alt: "Box plots of log fare for each passenger class split by outcome; survivors paid slightly more in first and second class."
+fig, ax = plt.subplots(figsize=(7.5, 4))
+sns.boxplot(data=eda, x="Class", y="FareLog", hue="Outcome", palette=PALETTE,
+            order=["First", "Second", "Third"], hue_order=["Did not survive", "Survived"],
+            fliersize=2, ax=ax)
+ax.set_xlabel("Passenger class")
+ax.set_ylabel("Fare (log scale, log of 1 + pounds)")
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 6. Distribution of the log fare for survivors and non-survivors, and the log fare within each passenger class. Use the tabs to switch views.*
+
+Fares are extremely right-skewed (skewness of about 4.8), with a maximum of 512.33 pounds and 15 passengers who paid nothing, so we work with the logarithm of one plus the fare instead of the raw value. Survivors paid more: the median fare was 26.0 pounds for survivors and 10.5 pounds for non-survivors. Part of that is simply passenger class, because fare and class are strongly linked, but within first and second class the survivors still paid somewhat more, while in third class the two groups paid almost the same (Figure 6, Fare within each class tab).
+
+**Include in the model?** Yes, in its log form. It overlaps with passenger class, which we take into account in the feature selection below.
+
+### Family on board
+
+```{python}
+#| label: prep-family
+eda["FamilyGroup"] = np.where(eda["FamilySize"] >= 5, "5+", eda["FamilySize"].astype(str))
+```
+
+::: {.panel-tabset}
+
+#### Family size {.unnumbered}
+
+```{python}
+#| label: plot-family-size
+#| fig-alt: "Bar chart of survival by family size: 30% alone, 55% and 58% for sizes 2 and 3, 72% for size 4, and 16% for 5 or more."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, eda, "FamilyGroup", order=["1", "2", "3", "4", "5+"],
+         xlabel="Family size (passenger plus relatives on board)")
+fig.tight_layout()
+plt.show()
+```
+
+#### Travelling alone {.unnumbered}
+
+```{python}
+#| label: plot-alone
+#| fig-alt: "Bar chart: 30% of passengers travelling alone survived versus 51% of those with family."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, eda, "IsAlone", order=[1, 0], xlabel="Travelling alone?", labels=["Alone", "With family"])
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 7. Survival rate by family size and by whether the passenger travelled alone. Use the tabs to switch views.*
+
+We combined the number of siblings or spouses and the number of parents or children into a single family size (the passenger plus these relatives). Survival is not a straight-line function of family size. People travelling alone survived 30.4% of the time, small families of two to four did best (55.3%, 57.8% and 72.4%), and large families of five or more did worst, with only 16.1% surviving (Figure 7, Family size tab). Collapsing this into "alone versus with family" keeps the main contrast, 30.4% versus 50.6% (Figure 7, Travelling alone tab), in a single clean feature.
+
+**Include in the model?** We keep the "travelling alone" indicator. The separate counts of siblings and spouses and of parents and children have almost no linear relationship with survival (shown below), and family size is almost the same information as the alone flag.
+
+### Port of boarding
+
+```{python}
+#| label: prep-port
+port_names = {"C": "Cherbourg", "Q": "Queenstown", "S": "Southampton"}
+```
+
+::: {.panel-tabset}
+
+#### Survival by port {.unnumbered}
+
+```{python}
+#| label: plot-port-survival
+#| fig-alt: "Bar chart: survival by port was Cherbourg 55%, Queenstown 39% and Southampton 34%."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, eda, "Embarked", order=["C", "Q", "S"], xlabel="Port of boarding",
+         labels=list(port_names.values()))
+fig.tight_layout()
+plt.show()
+```
+
+#### Class mix by port {.unnumbered}
+
+```{python}
+#| label: plot-port-class
+#| fig-alt: "Stacked bars of the class mix at each port: about half of Cherbourg passengers were in first class versus about one fifth at Southampton."
+mix = pd.crosstab(eda["Embarked"], eda["Pclass"], normalize="index").loc[["C", "Q", "S"]] * 100
+mix.index = list(port_names.values())
+mix.columns = ["First class", "Second class", "Third class"]
+fig, ax = plt.subplots(figsize=(7, 4.3))
+mix.plot.bar(stacked=True, ax=ax, rot=0, color=["#0072B2", "#56B4E9", "#D55E00"])
+ax.set_xlabel("Port of boarding")
+ax.set_ylabel("Share of passengers (%)")
+ax.legend(title="Class", loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=3)
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 8. Survival rate by port of boarding and the mix of passenger classes among passengers boarding at each port. Use the tabs to switch views. Two passengers with no recorded port are left out.*
+
+Passengers who boarded at Cherbourg survived more often (55.4%) than those from Queenstown (39.0%) or Southampton (33.7%). The "Class mix by port" tab offers a likely reason: 50.6% of the Cherbourg passengers travelled first class, against 19.7% at Southampton. The port effect is therefore partly the class effect in disguise, although Cherbourg passengers in third class still fared better than those from Southampton (37.9% versus 19.0%).
+
+**Include in the model?** It is a weak, partly redundant signal, so it is a lower-priority feature. We keep it as an indicator for Cherbourg and let the ranking below decide whether it makes our top five.
+
+### Title and cabin
+
+::: {.panel-tabset}
+
+#### Title {.unnumbered}
+
+```{python}
+#| label: plot-title
+#| fig-alt: "Bar chart of survival by title: Master 57%, Miss 70%, Mr 16%, Mrs 79%, Rare 35%."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, eda, "Title", order=["Master", "Miss", "Mr", "Mrs", "Rare"], xlabel="Title in the passenger's name")
+fig.tight_layout()
+plt.show()
+```
+
+#### Cabin recorded, by class {.unnumbered}
+
+```{python}
+#| label: plot-cabin-class
+#| fig-alt: "Grouped bars of survival by passenger class split by whether a cabin was recorded; a recorded cabin goes with higher survival in every class."
+cab = eda.groupby(["Pclass", "HasCabin"])["Survived"].mean().unstack() * 100
+cab.index = ["First", "Second", "Third"]
+cab.columns = ["No cabin recorded", "Cabin recorded"]
+fig, ax = plt.subplots(figsize=(7, 4))
+cab.plot.bar(ax=ax, color=[DIED, SURV], rot=0, width=0.75)
+ax.set_ylim(0, 112)
+ax.set_xlabel("Passenger class")
+ax.set_ylabel("Survival rate (%)")
+ax.legend(loc="upper left")
+for c in ax.containers:
+    ax.bar_label(c, fmt="%.0f%%", padding=2, fontsize=9)
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 9. Survival rate by title, and by passenger class and whether a cabin was recorded. Use the tabs to switch views.*
+
+Titles pack sex, age and marital status into one feature: "Master" (young boys) survived 57.5% of the time, while men titled "Mr" survived only 15.7%, and "Miss" and "Mrs" survived 70.3% and 79.4%. This is mostly the sex effect again, with the useful extra detail that boys fared far better than men.
+
+Having a cabin recorded is linked to survival in every class (Figure 9, Cabin tab), although only 16 second-class and 12 third-class passengers have one, so those bars are noisy. A possible explanation is that cabin numbers were more likely to be recorded for people who survived to be interviewed, but these data cannot test that. Because most cabin information is missing and a recorded cabin is closely tied to first class, we treat it with care.
+
+**Include in the model?** Title overlaps almost completely with sex, so we keep it in the processed data for later experiments but do not select it. The cabin-recorded flag is kept only if it adds something beyond passenger class, which we test in the correlation analysis.
+
+### Columns we exclude
+
+The passenger identifier is only a row number and cannot help predict survival. The name is used only to extract the title. The ticket number is a mix of codes with many unique values; a possible future feature is the number of passengers sharing a ticket, but we leave that out for now to keep the analysis simple.
+
+## Transforming the data for modelling
+
+We now turn the cleaned columns into a form a model can use. The steps are: fill in the missing values using statistics learned **from the training data only**, create the extra features described above, take the logarithm of the fare, and convert categories to 0/1 columns. We deliberately do not scale the numeric columns here. Scaling will be done inside the modelling pipeline, so that its mean and spread are also learned from training data only.
+
+```{python}
+#| label: learn-imputation
+train_feat = add_simple_features(train)
+fill_values = {
+    "age_by_title": train_feat.groupby("Title")["Age"].median(),
+    "age_overall": train_feat["Age"].median(),
+    "embarked_mode": train_feat["Embarked"].mode()[0],
+    "fare_by_class": train_feat.groupby("Pclass")["Fare"].median(),
+    "fare_overall": train_feat["Fare"].median(),
+}
+display(fill_values["age_by_title"].rename("Median age (years)").to_frame())
+display(fill_values["fare_by_class"].rename("Median fare (pounds)").to_frame())
+print("Most common port in the training set:", fill_values["embarked_mode"])
+```
+
+*Table 4. Values learned from the training set to fill in missing ages (by title, top), missing fares (by passenger class, middle) and missing ports of boarding (bottom).*
+
+```{python}
+#| label: preprocess
+TITLES = ["Master", "Miss", "Mr", "Mrs", "Rare"]
+
+def preprocess(df, fv):
+    """Impute, engineer and encode features using fill values learned from the training set."""
+    out = add_simple_features(df)
+    out["Age"] = out["Age"].fillna(out["Title"].map(fv["age_by_title"])).fillna(fv["age_overall"])
+    out["Embarked"] = out["Embarked"].fillna(fv["embarked_mode"])
+    out["Fare"] = out["Fare"].fillna(out["Pclass"].map(fv["fare_by_class"])).fillna(fv["fare_overall"])
+    out["FareLog"] = np.log1p(out["Fare"])
+    out["Sex_female"] = (out["Sex"] == "female").astype(int)
+    for port in ["C", "Q", "S"]:
+        out[f"Embarked_{port}"] = (out["Embarked"] == port).astype(int)
+    for t in TITLES:
+        out[f"Title_{t}"] = (out["Title"] == t).astype(int)
+    return out
+
+FEATURES = [
+    "Pclass", "Sex_female", "Age", "SibSp", "Parch", "Fare", "FareLog", "FamilySize",
+    "IsAlone", "HasCabin", "AgeMissing", "Embarked_C", "Embarked_Q", "Embarked_S",
+] + [f"Title_{t}" for t in TITLES]
+
+train_p = preprocess(train, fill_values)
+test_p = preprocess(test, fill_values)
+
+# Every modelling column must now be complete in all three datasets.
+for name, d in [("training", train_p), ("test", test_p)]:
+    assert d[FEATURES].isna().sum().sum() == 0, f"missing values left in {name} data"
+print("No missing values remain in any modelling column.")
+train_p[FEATURES].dtypes.value_counts().rename("Number of columns").to_frame()
+```
+
+*Table 5. Data types of the modelling columns after the transformations. All 19 columns are numeric.*
+
+All 19 candidate modelling columns are now numeric and complete in both the training and the test data.
+
+## Which features relate most strongly to survival?
+
+We now measure the relationship between every feature and survival, and between the features themselves. We use the Pearson correlation coefficient, which for 0/1 columns is also known as the point-biserial or phi coefficient. It runs from -1 to 1: a positive value means the feature goes up when survival is more likely, and a negative value means the opposite. We compute it on the imputed training set, so the correlation for age includes the filled-in ages.
+
