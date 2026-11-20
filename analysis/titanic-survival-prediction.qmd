@@ -21,7 +21,7 @@ format:
 
 The sinking of the RMS *Titanic* on April 15, 1912 remains one of the best-documented maritime disasters in modern history. Historical and sociological studies have shown that survival was strongly shaped by evacuation norms ("women and children first") and differences in social class [@hall1986; @elinder2012].
 
-In this project, we ask a predictive research question: **how accurately can a passenger's survival on the Titanic be predicted from demographic and ticket information available prior to departure, and does adding domain-informed optional features and interactions improve upon our core correlation-selected predictors?** Using the Kaggle Titanic dataset [@cukierski2012], we first conduct an exploratory data analysis (EDA) on the 891 labelled training passengers and save the cleaned datasets to `data/processed/`. We then build and evaluate a regularized logistic regression classification pipeline using 5-fold stratified cross-validation.
+In this project, we ask a predictive research question: **how accurately can a passenger's survival on the Titanic be predicted from demographic and ticket information available prior to departure, and does adding domain-informed optional features and interactions improve upon our core correlation-selected predictors?** Using the Kaggle Titanic dataset [@cukierski2012], we first conduct an exploratory data analysis on the 891 labelled training passengers and save the cleaned datasets to the processed data folder. We then build and evaluate a regularized logistic regression classification model using five-fold stratified cross-validation.
 
 # Exploratory data analysis
 
@@ -749,9 +749,9 @@ print(f"test_processed.csv: {len(test_p)} rows x {len(KEEP)} columns")
 
 # Predictive modelling with logistic regression
 
-In this section, we build a classification pipeline using `LogisticRegression` [@pedregosa2011] wrapped with `StandardScaler` inside a scikit-learn `Pipeline`. Applying standardization inside the pipeline ensures that feature means and standard deviations are learned strictly within each training fold during 5-fold stratified cross-validation (`SEED = 522`).
+In this section, we build a classification pipeline using logistic regression [@pedregosa2011] combined with feature standardization. Applying standardization inside the modelling pipeline ensures that feature means and standard deviations are learned strictly within each training fold during five-fold stratified cross-validation (using a fixed random seed for reproducibility).
 
-To connect our EDA findings with the modelling stage without repeating the individual feature analyses, we test whether adding the optional features kept in `data/processed/` (`Age`, `FamilySize`, and passenger title indicators `Title_Master`, `Title_Miss`, `Title_Mrs`) together with the `Sex_female × Pclass` interaction identified in Figure 4 improves cross-validation performance over the five correlation-selected features (`selected_features.txt`).
+To connect our exploratory findings with the modelling stage without repeating the individual feature analyses, we test whether adding the optional features kept in the processed data (age, family size, and the passenger title indicators for "Master", "Miss", and "Mrs") together with the interaction between sex and passenger class identified in Figure 4 improves cross-validation performance over the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg).
 
 ```{python}
 #| label: model-comparison
@@ -781,9 +781,9 @@ dummy_res = cross_validate(
     train_mod[selected_5], y_train, cv=cv, scoring=["accuracy", "roc_auc"]
 )
 cv_rows = [{
-    "Model": "Baseline (DummyClassifier: most frequent)",
-    "Features (p)": len(selected_5),
-    "CV Accuracy (mean ± SD)": f"{dummy_res['test_accuracy'].mean():.3f} ± {dummy_res['test_accuracy'].std():.3f}",
+    "Model": "Baseline (most frequent outcome)",
+    "Number of features": len(selected_5),
+    "CV accuracy (mean ± SD)": f"{dummy_res['test_accuracy'].mean():.3f} ± {dummy_res['test_accuracy'].std():.3f}",
     "Precision": 0.0,
     "Recall": 0.0,
     "F1-score": 0.0,
@@ -792,7 +792,7 @@ cv_rows = [{
 
 for label, cols in [
     ("Logistic regression (5 selected features)", selected_5),
-    ("Logistic regression (5 selected + optional & interaction)", extended_cols),
+    ("Logistic regression (5 selected + optional & sex-by-class interaction)", extended_cols),
 ]:
     pipe = Pipeline([
         ("scaler", StandardScaler()),
@@ -801,8 +801,8 @@ for label, cols in [
     res = cross_validate(pipe, train_mod[cols], y_train, cv=cv, scoring=scoring)
     cv_rows.append({
         "Model": label,
-        "Features (p)": len(cols),
-        "CV Accuracy (mean ± SD)": f"{res['test_accuracy'].mean():.3f} ± {res['test_accuracy'].std():.3f}",
+        "Number of features": len(cols),
+        "CV accuracy (mean ± SD)": f"{res['test_accuracy'].mean():.3f} ± {res['test_accuracy'].std():.3f}",
         "Precision": res["test_precision"].mean(),
         "Recall": res["test_recall"].mean(),
         "F1-score": res["test_f1"].mean(),
@@ -812,13 +812,13 @@ for label, cols in [
 display(pd.DataFrame(cv_rows).round(3))
 ```
 
-*Table 8. Five-fold stratified cross-validation performance comparing the majority-class baseline, logistic regression on the 5 correlation-selected features, and logistic regression adding the optional features and `Sex × Pclass` interaction.*
+*Table 8. Five-fold stratified cross-validation performance comparing the majority-class baseline, logistic regression on the five correlation-selected features, and logistic regression adding the optional features and the interaction between sex and passenger class.*
 
-Table 8 shows that logistic regression on the five correlation-selected features (`Sex_female`, `Pclass`, `FareLog`, `IsAlone`, `Embarked_C`) achieves **77.4%** cross-validation accuracy (ROC-AUC = 0.835), beating the 61.6% majority-class baseline by 15.8 percentage points. Adding the optional features (`Age`, `FamilySize`, and title indicators) and the `Sex_female × Pclass` interaction further lifts cross-validation accuracy by 5.2 percentage points to **82.6%** (F1 = 0.761, ROC-AUC = **0.871**), confirming that controlling for age, family size, youth/marital titles, and the sex-by-class interaction adds substantial predictive power in a multivariable linear model.
+Table 8 shows that logistic regression on the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg) achieves **77.4%** cross-validation accuracy (area under the receiver operating characteristic curve, or ROC-AUC, of 0.835), beating the 61.6% majority-class baseline by 15.8 percentage points. Adding the optional features (age, family size, and passenger titles) and the interaction between sex and passenger class further lifts cross-validation accuracy by 5.2 percentage points to **82.6%** (F1-score of 0.761, ROC-AUC of **0.871**), confirming that controlling for age, family size, youth and marital titles, and the sex-by-class interaction adds substantial predictive power in a multivariable linear model.
 
 ## Diagnostic evaluation and feature weights
 
-We inspect out-of-fold predictions and standardized coefficients for the extended logistic regression model across the 891 training passengers, and save the resulting predictions for the 418 unlabelled test passengers to `data/processed/test_predictions.csv`.
+We inspect out-of-fold predictions and standardized coefficients for the extended logistic regression model across the 891 training passengers, and save the resulting predictions for the 418 unlabelled test passengers to the processed data folder.
 
 ```{python}
 #| label: model-diagnostics
@@ -880,7 +880,7 @@ plt.show()
 
 ```{python}
 #| label: plot-coefs
-#| fig-alt: "Horizontal bar chart of standardized logistic regression coefficients showing positive weights for Female, Title Mrs, Title Master, Title Miss, and FareLog, and negative weights for FamilySize, Pclass, Sex x Pclass, Age, and IsAlone."
+#| fig-alt: "Horizontal bar chart of standardized logistic regression coefficients showing positive weights for being female, the titles Mrs, Master, and Miss, and log fare, and negative weights for family size, passenger class, the interaction of female and class, age, and travelling alone."
 FEATURE_NAMES = {
     "Sex_female": "Female", "Title_Mrs": "Title: Mrs", "Title_Master": "Title: Master",
     "Title_Miss": "Title: Miss", "FareLog": "Fare (log)", "Embarked_C": "Boarded Cherbourg",
@@ -900,13 +900,13 @@ plt.show()
 
 *Figure 12. Out-of-fold confusion matrix and ROC curve (first tab) and standardized coefficients (second tab) for the extended logistic regression pipeline. Use the tabs to switch views.*
 
-Across all 891 training passengers, the model correctly classifies **88.9%** of non-survivors (490/549) and **71.9%** of survivors (246/342), with a precision of 80.7% (Figure 12). On the 418 unlabelled test passengers, it predicts 160 survivors (38.3%), matching the 38.4% observed training survival rate.
+Across all 891 training passengers, the model correctly classifies **88.9%** of non-survivors (490 of 549) and **71.9%** of survivors (246 of 342), with a precision of 80.7% (Figure 12). On the 418 unlabelled test passengers, it predicts 160 survivors (38.3%), matching the 38.4% observed training survival rate.
 
 # Discussion and conclusions
 
-Our results show that a regularized logistic regression pipeline predicts Titanic passenger survival with **77.4%** 5-fold cross-validation accuracy using the five correlation-selected features (`Sex_female`, `Pclass`, `FareLog`, `IsAlone`, `Embarked_C`), well above the 61.6% majority-class baseline. Incorporating the optional features identified during our EDA (`Age`, `FamilySize`, and passenger titles) together with the `Sex_female × Pclass` interaction lifts cross-validation accuracy to **82.6%** (F1 = 0.761, ROC-AUC = 0.871). The standardized weights confirm that passenger sex, youth and marital titles (`Title_Master`, `Title_Mrs`, `Title_Miss`), ticket class, log fare, and family size are the primary predictors, consistent with historical accounts of the evacuation [@hall1986; @elinder2012].
+Our results show that a regularized logistic regression pipeline predicts Titanic passenger survival with **77.4%** five-fold cross-validation accuracy using the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg), well above the 61.6% majority-class baseline. Incorporating the optional features identified during our exploratory analysis (age, family size, and passenger titles) together with the interaction between sex and passenger class lifts cross-validation accuracy to **82.6%** (F1-score of 0.761, ROC-AUC of 0.871). The standardized weights confirm that passenger sex, youth and marital titles ("Master", "Mrs", and "Miss"), ticket class, log fare, and family size are the primary predictors, consistent with historical accounts of the evacuation [@hall1986; @elinder2012].
 
-Two main limitations apply to this baseline analysis: (1) our findings describe statistical associations in a single 1912 dataset rather than causal effects, and missing values in `Age` (20%) and `Cabin` (77%) were not missing completely at random; and (2) we evaluated default $L_2$ regularization ($C = 1.0$) with a linear log-odds boundary, where recall on survivors (71.9%) remains lower than specificity on non-survivors (88.9%). Future work can explore hyperparameter tuning of the regularization strength $C$, probability threshold adjustment, or non-linear classifiers.
+Two main limitations apply to this baseline analysis: (1) our findings describe statistical associations in a single 1912 dataset rather than causal effects, and missing values in age (20%) and cabin (77%) were not missing completely at random; and (2) we evaluated default ridge regularization with a linear log-odds boundary, where recall on survivors (71.9%) remains lower than specificity on non-survivors (88.9%). Future work can explore hyperparameter tuning of the regularization strength, probability threshold adjustment, or non-linear classifiers.
 
 # References
 
