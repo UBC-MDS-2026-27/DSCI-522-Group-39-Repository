@@ -1,6 +1,7 @@
 ---
 title: "Predicting Titanic Passenger Survival"
 jupyter: python3
+bibliography: references.bib
 format:
   html:
     embed-resources: true
@@ -738,3 +739,8 @@ print("Selected features:", selected)
 print(f"train_processed.csv: {len(train_p)} rows x {len(KEEP) + 1} columns")
 print(f"test_processed.csv: {len(test_p)} rows x {len(KEEP)} columns")
 ```
+
+# References
+
+::: {#refs}
+:::
