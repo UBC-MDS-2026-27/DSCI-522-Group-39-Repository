@@ -2,3 +2,37 @@
 title: "Predicting Titanic Passenger Survival"
 jupyter: python3
 ---
+
+# Exploratory data analysis
+
+This section explores the Titanic passenger data before any model is built. We check the structure of the data and how much of it is missing, compare every passenger characteristic with the outcome we want to predict (whether the passenger survived, coded 1, or died, coded 0), and clean and transform the data so that it is ready for modelling. We finish by ranking the features by how strongly they relate to survival and choosing the four to five that we will carry into the model.
+
+We use Python with pandas [@mckinney2010], scikit-learn [@pedregosa2011], matplotlib [@hunter2007] and seaborn [@waskom2021]. The passenger records come from the Kaggle "Titanic: Machine Learning from Disaster" competition [@cukierski2012]. Each row is one passenger. Kaggle supplies two files: a training file of 891 passengers whose survival outcome is known, and a test file of 418 passengers whose outcome is hidden.
+
+```{python}
+#| label: setup
+from pathlib import Path
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+import seaborn as sns
+from IPython.display import display
+from sklearn.feature_selection import mutual_info_classif
+
+SEED = 522  # fixed seed so that every teammate gets the same mutual-information values
+sns.set_theme(style="whitegrid", context="notebook")
+plt.rcParams.update({"figure.dpi": 110, "axes.titlesize": 12, "axes.labelsize": 11})
+SURV, DIED = "#0072B2", "#D55E00"
+PALETTE = {"Survived": SURV, "Did not survive": DIED}
+
+# The report is rendered from analysis/, so the data folder is one level up.
+ROOT = Path("..") if Path("../data").exists() else Path(".")
+RAW_DIR, PROC_DIR = ROOT / "data" / "raw", ROOT / "data" / "processed"
+PROC_DIR.mkdir(parents=True, exist_ok=True)
+
+train = pd.read_csv(RAW_DIR / "train.csv")
+test = pd.read_csv(RAW_DIR / "test.csv")
+print(f"Training data: {train.shape[0]} rows x {train.shape[1]} columns")
+print(f"Test data: {test.shape[0]} rows x {test.shape[1]} columns")
+```
