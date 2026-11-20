@@ -1,5 +1,6 @@
 ---
 title: "Predicting Titanic Passenger Survival"
+author: "Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid"
 jupyter: python3
 bibliography: references.bib
 format:
@@ -15,6 +16,12 @@ format:
           .panel-tabset .nav-link { font-size: 0.95rem; }
           </style>
 ---
+
+# Introduction
+
+The sinking of the RMS *Titanic* on April 15, 1912 remains one of the best-documented maritime disasters in modern history. Historical and sociological studies have shown that survival was strongly shaped by evacuation norms ("women and children first") and differences in social class [@hall1986; @elinder2012].
+
+In this project, we ask a predictive research question: **how accurately can a passenger's survival on the Titanic be predicted from demographic and ticket information available prior to departure, and does adding domain-informed optional features and interactions improve upon our core correlation-selected predictors?** Using the Kaggle Titanic dataset [@cukierski2012], we first conduct an exploratory data analysis (EDA) on the 891 labelled training passengers and save the cleaned datasets to `data/processed/`. We then build and evaluate a regularized logistic regression classification pipeline using 5-fold stratified cross-validation.
 
 # Exploratory data analysis
 
