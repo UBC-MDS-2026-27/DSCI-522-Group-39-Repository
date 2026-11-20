@@ -1,48 +1,89 @@
+
 # Contributing to Titanic Survival Prediction
 
-Thank you for your interest in this project. Contributions should help make the Titanic survival analysis clearer, more reproducible, or more reliable.
+**DSCI 522 — Group 39**
 
-## Before making a change
+Our project investigates whether passenger characteristics can predict survival on the Titanic. Contributions should help improve the analysis, make the work reproducible, or communicate the findings more clearly.
 
-For a bug, question, or substantial proposed change, open a GitHub issue first so the project team can discuss the scope. Include enough detail to reproduce a problem, such as the command you ran, the error message, and the expected behavior. Small documentation fixes can be submitted directly as a pull request.
+The following guidelines explain how to contribute to the project.
 
-## Set up the project
+## Discussing Changes
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), Python 3.12 or newer, and [Quarto](https://quarto.org/docs/get-started/). Then clone the repository, enter its directory, and sync the environment:
+We use GitHub Issues to discuss tasks, report problems, and coordinate substantial changes before starting work.
+
+When creating an issue, explain the problem or proposed improvement and why it matters. For bugs, include the relevant commands, error messages, and steps to reproduce the problem.
+
+Minor documentation corrections may be proposed directly through a pull request.
+
+## Reproducing the Project Environment
+
+Our project uses Python, [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage dependencies, and [Quarto](https://quarto.org/docs/get-started/) to create the report.
+
+Install Python 3.12 or newer, uv, and Quarto before proceeding.
+
+Clone the repository and open its directory:
 
 ```sh
 git clone https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository.git
 cd DSCI-522-Group-39-Repository
+```
+
+Set up the Python environment:
+
+```sh
 uv sync --locked
 ```
 
-To check that the Quarto project renders, run:
+Run the analysis and render the Quarto project:
 
 ```sh
 uv run quarto render
 ```
 
-## Pull request process
+If a new Python package is needed, add it using `uv add <package>` and commit the updated `pyproject.toml` and `uv.lock` files.
 
-1. Start from the latest `main` branch and create a descriptive branch for one focused change, such as `clarify-data-source` or `add-survival-plot`.
-2. Make changes in the source files. For the report, edit the `.qmd` file rather than generated HTML or PDF output.
-3. If you add a Python dependency, use `uv add <package>` and commit the resulting changes to both `pyproject.toml` and `uv.lock`.
-4. Render the project with `uv run quarto render` and review the resulting output. Explain in the pull request if you could not render it.
-5. Open a pull request to `main`. Describe what changed, why it is needed, how you checked it, and link any related issue.
-6. Ask a teammate to review the pull request. A human team member must review and merge it; do not push directly to `main`.
+## Working with Data and Analysis
 
-Keep pull requests focused and avoid including unrelated generated files, local environment files, or credentials.
+To keep our analysis reliable and reproducible:
 
-## Generative AI policy
+- Store original data in `data/raw/` and cleaned or transformed data in `data/processed/`.
+- Split the data before exploratory analysis or preprocessing to prevent information from the held-out test set influencing the analysis.
+- Explain analytical decisions, support findings with appropriate evidence, and cite data sources and references.
+- Edit the Quarto source file (`.qmd`) rather than manually changing rendered HTML or PDF files.
+- Check that the analysis runs correctly and that figures and explanations are consistent with the results.
 
-Generative AI tools may be used for brainstorming, explanations, debugging suggestions, or help drafting code and documentation. Contributors must disclose AI use in the relevant issue or pull request, including the tool and a brief description of how it was used; include example prompts when AI-generated material is substantial.
+These practices will guide our work as the analysis develops.
 
-The contributor remains responsible for understanding, reviewing, testing, and correcting all submitted work, including any AI-assisted work. AI tools or agents must not open issues or pull requests, approve or merge changes, or make decisions on behalf of the team. Issues and pull requests must be opened and reviewed by human contributors.
+## Contributing Through GitHub
+
+We use separate branches and pull requests to review changes before adding them to `main`.
+
+1. Update your local `main` branch before starting a new task.
+2. Create a branch with a descriptive name and keep its changes focused on one task.
+3. Commit changes regularly using meaningful messages.
+4. Review and test your work, including rendering the report when relevant.
+5. Push your branch and open a pull request to `main`. Explain what changed, why, how it was tested, and reference any related issue.
+6. Have at least one teammate review and approve the pull request. Address necessary feedback before it is merged.
+
+Do not push directly to `main`. Keep temporary files, local environments, credentials, and unrelated generated files out of commits. Include the final rendered report when required for submission.
+
+## Generative AI Policy
+
+Generative AI tools may be used for brainstorming, explanations, debugging, coding assistance, and drafting documentation.
+
+Contributors must:
+
+- Understand, review, and test any AI-assisted work before submitting it.
+- Check the accuracy of generated code, information, and references.
+- Disclose which AI tool was used and how it assisted in the relevant GitHub issue or pull request.
+- Include example prompts when AI-generated contributions are substantial.
+
+GitHub issues and pull requests must be opened, reviewed, and merged by human contributors. AI tools may assist, but contributors remain responsible for their work and decisions.
 
 ## Code of Conduct
 
-By participating, contributors agree to follow this project's [Code of Conduct](CODE_OF_CONDUCT.md).
+All contributors are expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md), which outlines expectations for respectful communication, constructive feedback, and collaboration.
 
 ## Attribution
 
-These guidelines were written for this project with reference to the [dplyr contributing guidelines](https://github.com/tidyverse/dplyr/blob/master/.github/CONTRIBUTING.md) and the DSCI 522 Milestone 1 expectations.
+These guidelines were developed for DSCI 522 Group 39, drawing on the course's Milestone 1 requirements and the [dplyr contributing guidelines](https://github.com/tidyverse/dplyr/blob/master/.github/CONTRIBUTING.md), and adapted to our Titanic survival prediction project.
