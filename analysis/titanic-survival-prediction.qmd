@@ -1,6 +1,18 @@
 ---
 title: "Predicting Titanic Passenger Survival"
 jupyter: python3
+format:
+  html:
+    embed-resources: true
+    include-in-header:
+      - text: |
+          <style>
+          .cell-output-display { overflow-x: auto; max-width: 100%; }
+          .cell-output-display img { max-width: 100%; height: auto; }
+          .panel-tabset { margin: 1rem 0 0.5rem 0; }
+          .panel-tabset .tab-content { padding-top: 0.75rem; }
+          .panel-tabset .nav-link { font-size: 0.95rem; }
+          </style>
 ---
 
 # Exploratory data analysis
@@ -565,3 +577,164 @@ All 19 candidate modelling columns are now numeric and complete in both the trai
 
 We now measure the relationship between every feature and survival, and between the features themselves. We use the Pearson correlation coefficient, which for 0/1 columns is also known as the point-biserial or phi coefficient. It runs from -1 to 1: a positive value means the feature goes up when survival is more likely, and a negative value means the opposite. We compute it on the imputed training set, so the correlation for age includes the filled-in ages.
 
+### Correlation matrix
+
+```{python}
+#| label: plot-heatmap
+#| column: page
+#| fig-alt: "Lower-triangle heatmap of correlations between survival and 18 features. Survival is most positively correlated with being female and with the titles Miss and Mrs, and most negatively with the title Mr and with passenger class. Strong correlations between features include female and the title Mr, boarding at Cherbourg and at Southampton, and passenger class and cabin recorded."
+LABELS = {
+    "Survived": "Survived", "Pclass": "Passenger class", "Sex_female": "Female", "Age": "Age",
+    "SibSp": "Siblings/spouses", "Parch": "Parents/children", "FareLog": "Fare (log)",
+    "FamilySize": "Family size", "IsAlone": "Travelling alone", "HasCabin": "Cabin recorded",
+    "AgeMissing": "Age missing", "Embarked_C": "Boarded Cherbourg", "Embarked_Q": "Boarded Queenstown",
+    "Embarked_S": "Boarded Southampton", "Title_Master": "Title: Master", "Title_Miss": "Title: Miss",
+    "Title_Mr": "Title: Mr", "Title_Mrs": "Title: Mrs", "Title_Rare": "Title: Rare",
+}
+heat_cols = list(LABELS)
+corr = train_p[["Survived"] + FEATURES].corr()
+heat = corr.loc[heat_cols, heat_cols]
+mask = np.triu(np.ones_like(heat, dtype=bool), k=1)
+
+fig, ax = plt.subplots(figsize=(10.5, 8.3))
+sns.heatmap(heat, mask=mask, annot=True, fmt=".2f", annot_kws={"size": 7.5},
+            cmap="RdBu_r", center=0, vmin=-1, vmax=1, linewidths=0.4, linecolor="white",
+            xticklabels=[LABELS[c] for c in heat_cols], yticklabels=[LABELS[c] for c in heat_cols],
+            cbar_kws={"label": "Pearson correlation", "shrink": 0.8}, ax=ax)
+plt.xticks(rotation=45, ha="right")
+plt.yticks(rotation=0)
+fig.tight_layout()
+plt.show()
+```
+
+*Figure 10. Correlation matrix of survival and the candidate features in the training set. Red means a positive correlation and blue a negative one. Fare is shown on the log scale.*
+
+The first column of the heatmap shows how each feature relates to survival, and the rest shows how the features relate to each other. Three things stand out.
+
+First, the strongest links with survival are being female (0.54), having the title "Mr" (-0.55), travelling in a lower class, meaning a higher class number (-0.34), and the log fare (0.33). Second, several features are close to duplicates of each other. Being female and having the title "Mr" are almost mirror images (-0.87), boarding at Cherbourg and at Southampton are nearly opposite (-0.78), a recorded cabin follows passenger class (-0.73), and family size follows the alone flag (-0.69). Third, passenger class and the log fare are also related (-0.66), so they partly carry the same information.
+
+### Ranking the features
+
+Correlation only picks up straight-line relationships, so we also compute the mutual information between each feature and survival, which can detect any kind of dependence. It acts as a second opinion, particularly for age, where the effect is not linear.
+
+```{python}
+#| label: rank-features
+corr_target = corr["Survived"].drop("Survived")
+
+# Pick the top features by absolute correlation, skipping any that are nearly duplicates
+# (|r| >= 0.70) of one we already picked. We rank one representative per idea:
+# the title columns (which mostly repeat sex) and raw fare (replaced by log fare) are left out.
+CANDIDATES = ["Sex_female", "Pclass", "HasCabin", "FareLog", "IsAlone", "Embarked_C",
+              "Age", "Parch", "FamilySize", "SibSp", "AgeMissing"]
+K, REDUNDANT_AT = 5, 0.70
+selected, rows = [], []
+for f in corr_target[CANDIDATES].abs().sort_values(ascending=False).index:
+    clash = [(s, corr.loc[f, s]) for s in selected if abs(corr.loc[f, s]) >= REDUNDANT_AT]
+    if len(selected) >= K:
+        decision, reason = "Not selected", "top five already chosen"
+    elif clash:
+        decision, reason = "Not selected", f"near-duplicate of {LABELS[clash[0][0]].lower()} (r = {clash[0][1]:.2f})"
+    else:
+        selected.append(f)
+        decision, reason = "Selected", "high correlation, not redundant"
+    rows.append([LABELS[f], round(corr_target[f], 3), decision, reason])
+selection = pd.DataFrame(rows, columns=["Feature", "Correlation with survival", "Decision", "Reason"])
+
+mi = pd.Series(
+    mutual_info_classif(train_p[FEATURES], train_p["Survived"], random_state=SEED,
+                        discrete_features=[f not in ("Age", "Fare", "FareLog") for f in FEATURES]),
+    index=FEATURES,
+).sort_values(ascending=False)
+order = corr_target.abs().sort_values().index
+mi_order = mi.sort_values()
+```
+
+::: {.panel-tabset}
+
+#### Correlation with survival {.unnumbered}
+
+```{python}
+#| label: plot-rank-corr
+#| fig-alt: "Horizontal bars of the correlation of each feature with survival, led by the title Mr at minus 0.55 and female at 0.54, with the five selected features highlighted."
+fig, ax = plt.subplots(figsize=(7.5, 6.5))
+colors = [SURV if f in selected else "#B0B0B0" for f in order]
+ax.barh([LABELS.get(f, "Fare (raw)") for f in order], corr_target[order], color=colors)
+ax.axvline(0, color="black", lw=0.8)
+ax.set_xlabel("Pearson correlation with survival")
+ax.set_ylabel("Feature")
+ax.legend(handles=[Patch(color=SURV, label="Selected for modelling"),
+                   Patch(color="#B0B0B0", label="Not selected")], loc="lower right")
+fig.tight_layout()
+plt.show()
+```
+
+#### Mutual information {.unnumbered}
+
+```{python}
+#| label: plot-rank-mi
+#| fig-alt: "Horizontal bars of the mutual information of each feature with survival, led by the title Mr and female, with age ranking low."
+fig, ax = plt.subplots(figsize=(7.5, 6.5))
+ax.barh([LABELS.get(f, "Fare (raw)") for f in mi_order.index], mi_order.values,
+        color=[SURV if f in selected else "#B0B0B0" for f in mi_order.index])
+ax.set_xlabel("Mutual information with survival (nats)")
+ax.set_ylabel("Feature")
+ax.legend(handles=[Patch(color=SURV, label="Selected for modelling"),
+                   Patch(color="#B0B0B0", label="Not selected")], loc="lower right")
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 11. Features ranked by their correlation with survival (sorted by absolute size, with the sign shown by the direction of the bar) and by mutual information with survival. Use the tabs to switch views. Selected features are highlighted.*
+
+```{python}
+#| label: selection-table
+selection
+```
+
+*Table 6. Selection of the five features most strongly correlated with survival, skipping near-duplicates of features already chosen.*
+
+The five features we select are sex, passenger class, log fare, travelling alone and boarding at Cherbourg. They come from walking down the correlation ranking and skipping any feature that nearly repeats one already chosen. The "cabin recorded" flag has the fourth-highest correlation (0.32) but is skipped because it is almost the same as passenger class (-0.73), and most of its values are missing in the first place. The title columns are left out of the ranking because they mostly restate sex (-0.87 with the title "Mr"), even though their raw correlations are as high as the top feature. The raw fare is replaced by the log fare, which correlates better with survival (0.33 versus 0.26).
+
+Two caveats matter. The log fare is just below our 0.70 cut-off for redundancy with passenger class (-0.66), so these two overlap noticeably, and the modelling stage should check that fare adds something beyond class. And boarding at Cherbourg is the weakest of the five (0.17) and partly reflects class, as seen in Figure 8.
+
+The mutual information ranking agrees that sex, title and fare are the most informative. It scores travelling alone (0.021) and boarding at Cherbourg (0.014) much lower, which is another reason to treat those two as weak features. Age scores low as well (0.016), matching its weak correlation (-0.08), so the child effect we saw in Figure 5 is too concentrated in a small group to stand out in these overall measures. Family size is the opposite case: its correlation with survival is close to zero (0.02), yet its mutual information (0.048) is higher than that of travelling alone, which fits the non-straight-line pattern in Figure 7. We keep age and family size in the processed data as optional extras for flexible models, but they are not among the five features selected by correlation.
+
+## Summary of the exploratory analysis
+
+| Feature | Decision | Main reason |
+|:--|:--|:--|
+| Sex | Include | Strongest single signal (see Figure 4). |
+| Passenger class | Include | Survival falls steadily from first to third class and interacts with sex. |
+| Fare (log) | Include | Survivors paid more; the log scale removes the extreme skew. Overlaps with class. |
+| Travelling alone | Include | People travelling alone survived much less often than those with family. |
+| Port: Cherbourg | Include (weak) | Higher survival, but mostly a first-class effect. |
+| Age | Optional | Weak by both measures, but children survived more; needs imputation. |
+| Title | Optional | Mostly repeats sex; adds boys versus men. |
+| Cabin recorded | Drop | Nearly the same as passenger class; mostly missing. |
+| Siblings/spouses, parents/children | Drop | Almost no link with survival; the alone flag keeps the useful part. |
+| Family size | Optional | No linear link, but a non-linear pattern; the alone flag is the simpler version. |
+| Passenger ID, name, ticket | Drop | Identifiers, or only useful through the title. |
+
+*Table 7. Summary of our decision for each feature.*
+
+In short, a passenger's chance of survival depended most on being a woman, travelling in a higher class and having paid a higher fare, with smaller contributions from travelling with family and from the port of boarding. About a fifth of the ages and most of the cabins were missing, and the missing values were themselves linked to survival. These findings describe associations in this one historical dataset; they do not show that any single factor caused a passenger to survive.
+
+Two limitations apply to the conclusions above. First, correlation and mutual information look at one feature at a time, so they can miss combinations such as the sex-by-class interaction in Figure 4, and a feature that is weak on its own may still help a model. Second, our training data contains only 891 passengers, so small groups (for example older passengers or the rare titles) give noisy rates, and our selected features should be treated as a starting point that the model comparison can confirm or revise.
+
+## Saving the processed data
+
+We save the processed training and test data to the processed data folder, both using the fill values learned from the training data. The files keep all 19 candidate features, so the modelling stage can choose among them, together with the passenger identifier and, for the training file, the survival outcome. Our five selected features are stored in a short text file so that teammates can load the same list.
+
+```{python}
+#| label: save-processed
+KEEP = ["PassengerId"] + FEATURES
+train_p[KEEP + ["Survived"]].to_csv(PROC_DIR / "train_processed.csv", index=False)
+test_p[KEEP].to_csv(PROC_DIR / "test_processed.csv", index=False)
+(PROC_DIR / "selected_features.txt").write_text("\n".join(selected) + "\n")
+
+print("Selected features:", selected)
+print(f"train_processed.csv: {len(train_p)} rows x {len(KEEP) + 1} columns")
+print(f"test_processed.csv: {len(test_p)} rows x {len(KEEP)} columns")
+```
