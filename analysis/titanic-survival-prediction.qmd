@@ -902,6 +902,12 @@ plt.show()
 
 Across all 891 training passengers, the model correctly classifies **88.9%** of non-survivors (490/549) and **71.9%** of survivors (246/342), with a precision of 80.7% (Figure 12). On the 418 unlabelled test passengers, it predicts 160 survivors (38.3%), matching the 38.4% observed training survival rate.
 
+# Discussion and conclusions
+
+Our results show that a regularized logistic regression pipeline predicts Titanic passenger survival with **77.4%** 5-fold cross-validation accuracy using the five correlation-selected features (`Sex_female`, `Pclass`, `FareLog`, `IsAlone`, `Embarked_C`), well above the 61.6% majority-class baseline. Incorporating the optional features identified during our EDA (`Age`, `FamilySize`, and passenger titles) together with the `Sex_female × Pclass` interaction lifts cross-validation accuracy to **82.6%** (F1 = 0.761, ROC-AUC = 0.871). The standardized weights confirm that passenger sex, youth and marital titles (`Title_Master`, `Title_Mrs`, `Title_Miss`), ticket class, log fare, and family size are the primary predictors, consistent with historical accounts of the evacuation [@hall1986; @elinder2012].
+
+Two main limitations apply to this baseline analysis: (1) our findings describe statistical associations in a single 1912 dataset rather than causal effects, and missing values in `Age` (20%) and `Cabin` (77%) were not missing completely at random; and (2) we evaluated default $L_2$ regularization ($C = 1.0$) with a linear log-odds boundary, where recall on survivors (71.9%) remains lower than specificity on non-survivors (88.9%). Future work can explore hyperparameter tuning of the regularization strength $C$, probability threshold adjustment, or non-linear classifiers.
+
 # References
 
 ::: {#refs}
