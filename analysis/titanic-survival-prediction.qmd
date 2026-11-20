@@ -95,3 +95,102 @@ plt.show()
 ```
 
 *Figure 1. Number of training passengers who survived and who did not. The classes are moderately imbalanced, with about 38% survivors.*
+
+## Missing data
+
+We now measure how much of each column is missing in the training set. For comparison we also count the missing values in the test file, because it will be cleaned in the same way later. These counts do not influence any decision.
+
+```{python}
+#| label: missing-table
+cols = list(test.columns)
+missing = pd.DataFrame({
+    "Training: missing (n)": train[cols].isna().sum(),
+    "Training: missing (%)": (train[cols].isna().mean() * 100).round(1),
+    "Test: missing (n)": test[cols].isna().sum(),
+    "Test: missing (%)": (test[cols].isna().mean() * 100).round(1),
+})
+missing = missing[(missing.iloc[:, [0, 2]] > 0).any(axis=1)].sort_values(
+    "Training: missing (%)", ascending=False
+)
+missing
+```
+
+*Table 3. Columns with missing values in the training data and in the test data.*
+
+```{python}
+#| label: plot-missing
+#| fig-alt: "Horizontal bar chart of percent missing: cabin about 77% in training and 78% in test, age about 20% in both, port of boarding 0.2% in training only, fare 0.2% in test only."
+plot_df = missing[["Training: missing (%)", "Test: missing (%)"]]
+plot_df.columns = ["Training data", "Test data"]
+ax = plot_df.iloc[::-1].plot.barh(figsize=(7.5, 3.6), color=[SURV, "#999999"], width=0.75)
+ax.set_xlabel("Passengers with a missing value (%)")
+ax.set_ylabel("Column")
+ax.set_xlim(0, 100)
+for c in ax.containers:
+    ax.bar_label(c, fmt="%.1f%%", padding=3, fontsize=9)
+ax.legend(title="Data")
+plt.show()
+```
+
+*Figure 2. Percentage of missing values per column. The two files have very similar gaps, so one cleaning recipe can serve both.*
+
+Cabin is missing for 77.1% of training passengers (687 of 891), age for 19.9% (177), and port of boarding for only 0.2% (2). The test file shows the same pattern for cabin (78.2%) and age (20.6%), and has one missing fare. No other column has gaps.
+
+Missing values are not always random, so we check whether being missing is itself related to survival.
+
+```{python}
+#| label: helpers
+overall = train["Survived"].mean()
+
+def rate_bar(ax, data, col, order=None, xlabel="", labels=None):
+    """Bar chart of the survival rate for each level of `col`, with group sizes."""
+    g = data.groupby(col, observed=True)["Survived"].agg(["mean", "size"])
+    if order is not None:
+        g = g.reindex(order)
+    names = labels if labels is not None else [str(i) for i in g.index]
+    bars = ax.bar(names, g["mean"] * 100, color=SURV)
+    for b, m, n in zip(bars, g["mean"], g["size"]):
+        ax.text(b.get_x() + b.get_width() / 2, m * 100 + 1.5, f"{m:.0%}\n(n={n})",
+                ha="center", va="bottom", fontsize=9)
+    ax.axhline(overall * 100, ls="--", color="grey", lw=1, label="Overall survival rate (38%)")
+    ax.set_ylim(0, 115)
+    ax.set_yticks(range(0, 101, 20))
+    ax.legend(loc="upper right", fontsize=8, frameon=False)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Survival rate (%)")
+
+flags = train.assign(AgeKnown=train["Age"].notna(), CabinKnown=train["Cabin"].notna())
+```
+
+::: {.panel-tabset}
+
+#### Age recorded? {.unnumbered}
+
+```{python}
+#| label: plot-missing-age
+#| fig-alt: "Bar chart: passengers with a missing age survived 29% of the time versus 41% with a recorded age."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, flags, "AgeKnown", order=[False, True], xlabel="Age recorded?", labels=["No", "Yes"])
+fig.tight_layout()
+plt.show()
+```
+
+#### Cabin recorded? {.unnumbered}
+
+```{python}
+#| label: plot-missing-cabin
+#| fig-alt: "Bar chart: passengers with no cabin recorded survived 30% of the time versus 67% with a cabin recorded."
+fig, ax = plt.subplots(figsize=(7, 4))
+rate_bar(ax, flags, "CabinKnown", order=[False, True], xlabel="Cabin recorded?", labels=["No", "Yes"])
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 3. Survival rate by whether age and cabin were recorded. Use the tabs to switch between the two. The dashed line is the overall survival rate, and numbers in brackets are group sizes.*
+
+Passengers with no recorded age survived 29.4% of the time compared with 40.6% for those with a recorded age, and passengers with no recorded cabin survived 30.0% compared with 66.7% for those with a cabin. The data are therefore not missing completely at random, and it is worth keeping simple "was it recorded?" flags next to the imputed values. Cabin in particular tells us more through whether it exists than through its content, so we do not try to fill it in.
+
+**Decisions for missing data.** We fill in age using the median age of passengers with the same title, because titles such as "Master" (boys) and "Mrs" separate age groups far better than one overall median. We fill the missing ports with the most common port, and the single missing fare in the test file with the median fare of the same ticket class. For cabin we keep only a yes/no flag. All fill-in values are learned from the training data only and then applied unchanged to the test data, so no information leaks from the test file.
+
