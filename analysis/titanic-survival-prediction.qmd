@@ -36,3 +36,62 @@ test = pd.read_csv(RAW_DIR / "test.csv")
 print(f"Training data: {train.shape[0]} rows x {train.shape[1]} columns")
 print(f"Test data: {test.shape[0]} rows x {test.shape[1]} columns")
 ```
+
+## Training and test data
+
+The raw folder holds two files, and we use them exactly as supplied. The training file (`train.csv`) has 891 passengers with a known outcome, and the test file (`test.csv`) has 418 passengers whose outcome is hidden. To respect the golden rule of machine learning, every pattern, plot, fill-in value and correlation below is learned from the training file only. The test file is used for two things: counting its missing values, and applying the same cleaning steps that were learned from the training data. Nothing in it influences a decision.
+
+## The variables
+
+Table 1 describes each column in the data. The last column of the table says what we expect to do with it, which we justify in the sections below.
+
+| Column in the data | Meaning | Plan |
+|:--|:--|:--|
+| Survived | Outcome: 1 if the passenger survived, 0 if not (the target) | Target |
+| Pclass | Ticket class: 1 (first), 2 (second) or 3 (third) | Candidate |
+| Sex | Male or female | Candidate |
+| Age | Age in years (fractional for infants) | Candidate, needs imputation |
+| SibSp | Number of siblings or spouses travelling with the passenger | Used to build family size |
+| Parch | Number of parents or children travelling with the passenger | Used to build family size |
+| Fare | Ticket price in pounds | Candidate, log transform |
+| Cabin | Cabin number, mostly missing | Reduced to a cabin-recorded flag |
+| Embarked | Port of boarding: Cherbourg, Queenstown or Southampton | Candidate, needs imputation |
+| Name | Passenger name including title (for example Mr or Mrs) | Only the title is used |
+| Ticket | Ticket number | Excluded |
+| PassengerId | Row identifier | Excluded (identifier only) |
+
+*Table 1. Description of each column in the Titanic data and how we plan to use it.*
+
+## A first look at the training data
+
+```{python}
+#| label: first-look
+display(train.head())
+display(train.describe().T.round(2))
+```
+
+*Table 2. The first five training rows (top) and summary statistics for the numeric columns (bottom).*
+
+The training data has 891 passengers and 12 columns. Passenger class, sex, siblings and spouses, parents and children, and fare are recorded for everyone. Age, cabin and port of boarding have gaps, which we examine next.
+
+Before comparing features, we check how balanced the target is. A model that predicts "did not survive" for everyone would already be right about 62% of the time on this data, so any model we build has to beat that baseline.
+
+```{python}
+#| label: plot-target
+#| fig-alt: "Bar chart of passenger counts: 549 did not survive and 342 survived."
+eda = train.copy()
+eda["Outcome"] = eda["Survived"].map({0: "Did not survive", 1: "Survived"})
+
+counts = eda["Outcome"].value_counts().reindex(["Did not survive", "Survived"])
+fig, ax = plt.subplots(figsize=(5.5, 3.6))
+bars = ax.bar(counts.index, counts.values, color=[DIED, SURV])
+for b, n in zip(bars, counts.values):
+    ax.text(b.get_x() + b.get_width() / 2, n + 6, f"{n} ({n / counts.sum():.1%})",
+            ha="center", va="bottom")
+ax.set_ylabel("Number of passengers")
+ax.set_xlabel("Outcome")
+ax.set_ylim(0, counts.max() * 1.15)
+plt.show()
+```
+
+*Figure 1. Number of training passengers who survived and who did not. The classes are moderately imbalanced, with about 38% survivors.*
