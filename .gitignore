@@ -3,3 +3,7 @@
 
 #.DS_Store
 .DS_Store
+
+# Quarto cache and intermediate notebooks
+/.quarto/
+**/*.quarto_ipynb

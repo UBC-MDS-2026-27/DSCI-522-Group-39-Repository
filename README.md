@@ -6,7 +6,7 @@ Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid
 
 ## Summary
 
-This project investigates whether passenger information can predict survival on the Titanic. The team is building and evaluating a basic classification model using a publicly available passenger dataset. The analysis is currently in progress, so this README does not yet report model results. We interpret observed patterns as associations in this historical dataset, not as evidence of cause and effect or as a basis for real-world decisions.
+This project investigates whether passenger information can predict survival on the Titanic. Using the Kaggle Titanic dataset (891 labelled training passengers and 418 unlabelled test passengers), we conduct an exploratory data analysis, engineer domain-informed features, and evaluate a regularized logistic regression pipeline via 5-fold stratified cross-validation. Logistic regression on the 5 correlation-selected features reaches 77.4% cross-validation accuracy, and adding our optional features (`Age`, `FamilySize`, passenger titles) and the `Sex × Pclass` interaction lifts accuracy to **82.6%** (F1 = 0.761, ROC-AUC = 0.871), compared with 61.6% for a majority-class baseline. We interpret observed patterns as associations in this historical dataset, not as evidence of cause and effect or as a basis for real-world decisions.
 
 ## Data
 
@@ -57,4 +57,4 @@ Example prompt: “Fill the README, contributing guide, and code of conduct base
 
 ## Report
 
-The report is under development and is not yet rendered or published. The team is preparing to add a link to the rendered report here when it becomes available.
+The rendered analysis report is available in the repository at [`analysis/titanic-survival-prediction.html`](analysis/titanic-survival-prediction.html) (generated from [`analysis/titanic-survival-prediction.qmd`](analysis/titanic-survival-prediction.qmd)).
