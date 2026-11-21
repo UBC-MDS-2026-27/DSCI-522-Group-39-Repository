@@ -40,6 +40,9 @@ import seaborn as sns
 from IPython.display import display
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.model_selection import train_test_split
+import shutil
+import subprocess
+from zipfile import ZipFile
 
 SEED = 522  # fixed seed so that every teammate gets the same mutual-information values
 sns.set_theme(style="whitegrid", context="notebook")
@@ -48,18 +51,81 @@ SURV, DIED = "#0072B2", "#D55E00"
 PALETTE = {"Survived": SURV, "Did not survive": DIED}
 
 # The report is rendered from analysis/, so the data folder is one level up.
-ROOT = Path("..") if Path("../data").exists() else Path(".")
+def find_root(start=Path.cwd()):
+    for p in [start, *start.parents]:
+        if (p / "pyproject.toml").exists():
+            return p
+    return start
+ROOT = find_root()
 RAW_DIR, PROC_DIR = ROOT / "data" / "raw", ROOT / "data" / "processed"
+
+RAW_DIR.mkdir(parents=True, exist_ok=True)
 PROC_DIR.mkdir(parents=True, exist_ok=True)
 
-train = pd.read_csv(RAW_DIR / "train.csv")
-test = pd.read_csv(RAW_DIR / "test.csv")
+# Download the Kaggle data if the raw CSV files are not already present.
+train_path = RAW_DIR / "train.csv"
+test_path = RAW_DIR / "test.csv"
+
+if not (train_path.exists() and test_path.exists()):
+    kaggle_executable = shutil.which("kaggle")
+
+    if kaggle_executable is None:
+        raise RuntimeError(
+            "Kaggle CLI was not found. Run `uv sync` to install project dependencies."
+        )
+
+    print("Downloading Titanic data from Kaggle...")
+
+    subprocess.run(
+        [
+            kaggle_executable,
+            "competitions",
+            "download",
+            "-c",
+            "titanic",
+            "-p",
+            str(RAW_DIR),
+        ],
+        check=True,
+    )
+
+    zip_path = RAW_DIR / "titanic.zip"
+
+    # Extract the downloaded CSV files into data/raw/.
+    with ZipFile(zip_path, "r") as zip_file:
+        zip_file.extractall(RAW_DIR)
+
+    # Check that both required files were extracted.
+    missing_files = [
+        filename
+        for filename in ["train.csv", "test.csv"]
+        if not (RAW_DIR / filename).exists()
+    ]
+
+    if missing_files:
+        raise FileNotFoundError(
+            f"Expected files were not found after extraction: {missing_files}"
+        )
+
+    # Remove the ZIP file after extraction.
+    zip_path.unlink()
+
+    print("Titanic data downloaded and extracted successfully.")
+
+else:
+    print("Raw Titanic data already exists. Skipping download.")
+
+# Read the raw data.
+train = pd.read_csv(train_path)
+test = pd.read_csv(test_path)
+
 train, holdout = train_test_split(
     train,
     test_size=0.30,
     stratify=train["Survived"],
     random_state=SEED
 )
+
 print(f"Training data: {train.shape[0]} rows x {train.shape[1]} columns")
 print(f"Test data: {test.shape[0]} rows x {test.shape[1]} columns")
 ```
