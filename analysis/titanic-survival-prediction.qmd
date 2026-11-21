@@ -1,5 +1,6 @@
 ---
 title: "Predicting Titanic Passenger Survival"
+author: "Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid"
 jupyter: python3
 bibliography: references.bib
 format:
@@ -15,6 +16,12 @@ format:
           .panel-tabset .nav-link { font-size: 0.95rem; }
           </style>
 ---
+
+# Introduction
+
+The sinking of the RMS *Titanic* on April 15, 1912 remains one of the best-documented maritime disasters in modern history. Historical and sociological studies have shown that survival was strongly shaped by evacuation norms ("women and children first") and differences in social class [@hall1986; @elinder2012].
+
+In this project, we ask a predictive research question: **how accurately can a passenger's survival on the Titanic be predicted from demographic and ticket information available prior to departure, and does adding domain-informed optional features and interactions improve upon our core correlation-selected predictors?** Using the Kaggle Titanic dataset [@cukierski2012], we first conduct an exploratory data analysis on the 891 labelled training passengers and save the cleaned datasets to the processed data folder. We then build and evaluate a regularized logistic regression classification model using five-fold stratified cross-validation.
 
 # Exploratory data analysis
 
@@ -739,6 +746,167 @@ print("Selected features:", selected)
 print(f"train_processed.csv: {len(train_p)} rows x {len(KEEP) + 1} columns")
 print(f"test_processed.csv: {len(test_p)} rows x {len(KEEP)} columns")
 ```
+
+# Predictive modelling with logistic regression
+
+In this section, we build a classification pipeline using logistic regression [@pedregosa2011] combined with feature standardization. Applying standardization inside the modelling pipeline ensures that feature means and standard deviations are learned strictly within each training fold during five-fold stratified cross-validation (using a fixed random seed for reproducibility).
+
+To connect our exploratory findings with the modelling stage without repeating the individual feature analyses, we test whether adding the optional features kept in the processed data (age, family size, and the passenger title indicators for "Master", "Miss", and "Mrs") together with the interaction between sex and passenger class identified in Figure 4 improves cross-validation performance over the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg).
+
+```{python}
+#| label: model-comparison
+from sklearn.dummy import DummyClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import StratifiedKFold, cross_validate, cross_val_predict
+from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve
+
+train_mod = pd.read_csv(PROC_DIR / "train_processed.csv")
+test_mod = pd.read_csv(PROC_DIR / "test_processed.csv")
+selected_5 = (PROC_DIR / "selected_features.txt").read_text().strip().splitlines()
+
+for df_m in (train_mod, test_mod):
+    df_m["Sex_x_Pclass"] = df_m["Sex_female"] * df_m["Pclass"]
+
+extended_cols = selected_5 + [
+    "Age", "FamilySize", "Sex_x_Pclass", "Title_Master", "Title_Miss", "Title_Mrs"
+]
+y_train = train_mod["Survived"]
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
+scoring = ["accuracy", "precision", "recall", "f1", "roc_auc"]
+
+dummy_res = cross_validate(
+    DummyClassifier(strategy="most_frequent"),
+    train_mod[selected_5], y_train, cv=cv, scoring=["accuracy", "roc_auc"]
+)
+cv_rows = [{
+    "Model": "Baseline (most frequent outcome)",
+    "Number of features": len(selected_5),
+    "CV accuracy (mean ± SD)": f"{dummy_res['test_accuracy'].mean():.3f} ± {dummy_res['test_accuracy'].std():.3f}",
+    "Precision": 0.0,
+    "Recall": 0.0,
+    "F1-score": 0.0,
+    "ROC-AUC": dummy_res["test_roc_auc"].mean(),
+}]
+
+for label, cols in [
+    ("Logistic regression (5 selected features)", selected_5),
+    ("Logistic regression (5 selected + optional & sex-by-class interaction)", extended_cols),
+]:
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
+    ])
+    res = cross_validate(pipe, train_mod[cols], y_train, cv=cv, scoring=scoring)
+    cv_rows.append({
+        "Model": label,
+        "Number of features": len(cols),
+        "CV accuracy (mean ± SD)": f"{res['test_accuracy'].mean():.3f} ± {res['test_accuracy'].std():.3f}",
+        "Precision": res["test_precision"].mean(),
+        "Recall": res["test_recall"].mean(),
+        "F1-score": res["test_f1"].mean(),
+        "ROC-AUC": res["test_roc_auc"].mean(),
+    })
+
+display(pd.DataFrame(cv_rows).round(3))
+```
+
+*Table 8. Five-fold stratified cross-validation performance comparing the majority-class baseline, logistic regression on the five correlation-selected features, and logistic regression adding the optional features and the interaction between sex and passenger class.*
+
+Table 8 shows that logistic regression on the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg) achieves **77.4%** cross-validation accuracy (area under the receiver operating characteristic curve, or ROC-AUC, of 0.835), beating the 61.6% majority-class baseline by 15.8 percentage points. Adding the optional features (age, family size, and passenger titles) and the interaction between sex and passenger class further lifts cross-validation accuracy by 5.2 percentage points to **82.6%** (F1-score of 0.761, ROC-AUC of **0.871**), confirming that controlling for age, family size, youth and marital titles, and the sex-by-class interaction adds substantial predictive power in a multivariable linear model.
+
+## Diagnostic evaluation and feature weights
+
+We inspect out-of-fold predictions and standardized coefficients for the extended logistic regression model across the 891 training passengers, and save the resulting predictions for the 418 unlabelled test passengers to the processed data folder.
+
+```{python}
+#| label: model-diagnostics
+ext_pipe = Pipeline([
+    ("scaler", StandardScaler()),
+    ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
+])
+oof_pred = cross_val_predict(ext_pipe, train_mod[extended_cols], y_train, cv=cv)
+oof_prob = cross_val_predict(ext_pipe, train_mod[extended_cols], y_train, cv=cv, method="predict_proba")[:, 1]
+cm = confusion_matrix(y_train, oof_pred)
+
+ext_pipe.fit(train_mod[extended_cols], y_train)
+coefs = pd.Series(ext_pipe.named_steps["logreg"].coef_[0], index=extended_cols).sort_values()
+
+test_pred = ext_pipe.predict(test_mod[extended_cols])
+test_prob = ext_pipe.predict_proba(test_mod[extended_cols])[:, 1]
+pd.DataFrame({
+    "PassengerId": test_mod["PassengerId"],
+    "Survived": test_pred,
+    "PredictedProbability": test_prob.round(4),
+}).to_csv(PROC_DIR / "test_predictions.csv", index=False)
+```
+
+::: {.panel-tabset}
+
+#### Confusion matrix & ROC {.unnumbered}
+
+```{python}
+#| label: plot-cm-roc
+#| fig-alt: "Side-by-side out-of-fold confusion matrix (490 true negatives, 59 false positives, 96 false negatives, 246 true positives) and ROC curve (AUC = 0.869) for the extended logistic regression model."
+cm_pct = cm / cm.sum(axis=1, keepdims=True) * 100
+annot = np.array([
+    [f"{cm[i, j]}\n({cm_pct[i, j]:.1f}%)" for j in range(2)]
+    for i in range(2)
+])
+fpr, tpr, _ = roc_curve(y_train, oof_prob)
+oof_auc = roc_auc_score(y_train, oof_prob)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.2, 4.1))
+sns.heatmap(
+    cm, annot=annot, fmt="", cmap="Blues", cbar=False,
+    xticklabels=["Pred: Died", "Pred: Survived"],
+    yticklabels=["Actual: Died", "Actual: Survived"],
+    annot_kws={"size": 10, "weight": "bold"}, linewidths=1, linecolor="white", ax=ax1
+)
+ax1.set_title("Out-of-fold confusion matrix")
+
+ax2.plot(fpr, tpr, color=SURV, lw=2, label=f"Logistic regression (AUC = {oof_auc:.3f})")
+ax2.plot([0, 1], [0, 1], ls="--", color="#888888", lw=1, label="Random baseline (AUC = 0.500)")
+ax2.set_xlabel("False positive rate")
+ax2.set_ylabel("True positive rate")
+ax2.set_title("Out-of-fold ROC curve")
+ax2.legend(loc="lower right", frameon=False, fontsize=9)
+fig.tight_layout()
+plt.show()
+```
+
+#### Standardized coefficients {.unnumbered}
+
+```{python}
+#| label: plot-coefs
+#| fig-alt: "Horizontal bar chart of standardized logistic regression coefficients showing positive weights for being female, the titles Mrs, Master, and Miss, and log fare, and negative weights for family size, passenger class, the interaction of female and class, age, and travelling alone."
+FEATURE_NAMES = {
+    "Sex_female": "Female", "Title_Mrs": "Title: Mrs", "Title_Master": "Title: Master",
+    "Title_Miss": "Title: Miss", "FareLog": "Fare (log)", "Embarked_C": "Boarded Cherbourg",
+    "IsAlone": "Travelling alone", "Sex_x_Pclass": "Female × Class", "Age": "Age",
+    "Pclass": "Passenger class", "FamilySize": "Family size",
+}
+fig, ax = plt.subplots(figsize=(7.5, 4.2))
+colors = [SURV if v > 0 else DIED for v in coefs.values]
+ax.barh([FEATURE_NAMES[c] for c in coefs.index], coefs.values, color=colors, height=0.68)
+ax.axvline(0, color="black", lw=0.8)
+ax.set_xlabel("Standardized logistic regression coefficient (log-odds per 1 SD)")
+fig.tight_layout()
+plt.show()
+```
+
+:::
+
+*Figure 12. Out-of-fold confusion matrix and ROC curve (first tab) and standardized coefficients (second tab) for the extended logistic regression pipeline. Use the tabs to switch views.*
+
+Across all 891 training passengers, the model correctly classifies **88.9%** of non-survivors (490 of 549) and **71.9%** of survivors (246 of 342), with a precision of 80.7% (Figure 12). On the 418 unlabelled test passengers, it predicts 160 survivors (38.3%), matching the 38.4% observed training survival rate.
+
+# Discussion and conclusions
+
+Our results show that a regularized logistic regression pipeline predicts Titanic passenger survival with **77.4%** five-fold cross-validation accuracy using the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg), well above the 61.6% majority-class baseline. Incorporating the optional features identified during our exploratory analysis (age, family size, and passenger titles) together with the interaction between sex and passenger class lifts cross-validation accuracy to **82.6%** (F1-score of 0.761, ROC-AUC of 0.871). The standardized weights confirm that passenger sex, youth and marital titles ("Master", "Mrs", and "Miss"), ticket class, log fare, and family size are the primary predictors, consistent with historical accounts of the evacuation [@hall1986; @elinder2012].
+
+Two main limitations apply to this baseline analysis: (1) our findings describe statistical associations in a single 1912 dataset rather than causal effects, and missing values in age (20%) and cabin (77%) were not missing completely at random; and (2) we evaluated default ridge regularization with a linear log-odds boundary, where recall on survivors (71.9%) remains lower than specificity on non-survivors (88.9%). Future work can explore hyperparameter tuning of the regularization strength, probability threshold adjustment, or non-linear classifiers.
 
 # References
 
