@@ -1,5 +1,5 @@
 Sex_female
 Pclass
-FareLog
 IsAlone
 Embarked_C
+Parch

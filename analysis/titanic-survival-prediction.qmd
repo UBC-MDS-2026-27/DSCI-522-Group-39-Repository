@@ -21,7 +21,7 @@ format:
 
 The sinking of the RMS *Titanic* on April 15, 1912 remains one of the best-documented maritime disasters in modern history. Historical and sociological studies have shown that survival was strongly shaped by evacuation norms ("women and children first") and differences in social class [@hall1986; @elinder2012].
 
-In this project, we ask a predictive research question: **how accurately can a passenger's survival on the Titanic be predicted from demographic and ticket information available prior to departure, and does adding domain-informed optional features and interactions improve upon our core correlation-selected predictors?** Using the Kaggle Titanic dataset [@cukierski2012], we first conduct an exploratory data analysis on the 891 labelled training passengers and save the cleaned datasets to the processed data folder. We then build and evaluate a regularized logistic regression classification model using five-fold stratified cross-validation.
+In this project, we ask a predictive research question: **how accurately can a passenger's survival on the Titanic be predicted from demographic and ticket information available prior to departure, and does adding domain-informed optional features and interactions improve upon our core correlation-selected predictors?** Using the Kaggle Titanic dataset [@cukierski2012], we first conduct an exploratory data analysis on the development set and save the cleaned datasets to the processed data folder. We then build and evaluate a regularized logistic regression classification model using five-fold stratified cross-validation and an independent held-out test set.
 
 # Exploratory data analysis
 
@@ -39,6 +39,7 @@ from matplotlib.patches import Patch
 import seaborn as sns
 from IPython.display import display
 from sklearn.feature_selection import mutual_info_classif
+from sklearn.model_selection import train_test_split
 
 SEED = 522  # fixed seed so that every teammate gets the same mutual-information values
 sns.set_theme(style="whitegrid", context="notebook")
@@ -53,13 +54,21 @@ PROC_DIR.mkdir(parents=True, exist_ok=True)
 
 train = pd.read_csv(RAW_DIR / "train.csv")
 test = pd.read_csv(RAW_DIR / "test.csv")
+train, holdout = train_test_split(
+    train,
+    test_size=0.30,
+    stratify=train["Survived"],
+    random_state=SEED
+)
 print(f"Training data: {train.shape[0]} rows x {train.shape[1]} columns")
 print(f"Test data: {test.shape[0]} rows x {test.shape[1]} columns")
 ```
 
 ## Training and test data
 
-The raw folder holds two files, and we use them exactly as supplied. The training file (`train.csv`) has 891 passengers with a known outcome, and the test file (`test.csv`) has 418 passengers whose outcome is hidden. To respect the golden rule of machine learning, every pattern, plot, fill-in value and correlation below is learned from the training file only. The test file is used for two things: counting its missing values, and applying the same cleaning steps that were learned from the training data. Nothing in it influences a decision.
+The Kaggle Titanic dataset consists of two files: `train.csv`, containing 891 passengers with known survival outcomes, and `test.csv`, containing 418 passengers whose survival outcomes are withheld. To enable independent model evaluation, we partition the 891 labeled observations into a training set (70%) and a held-out test set (30%) using stratified random sampling to preserve approximately the original proportions of survivors and non-survivors.
+
+We use the new training set for exploratory data analysis, preprocessing decisions, and model development. The held-out test set is reserved for final performance evaluation, while Kaggle's original `test.csv` remains separate for generating predictions.
 
 ## The variables
 
@@ -92,13 +101,13 @@ display(train.describe().T.round(2))
 
 *Table 2. The first five training rows (top) and summary statistics for the numeric columns (bottom).*
 
-The training data has 891 passengers and 12 columns. Passenger class, sex, siblings and spouses, parents and children, and fare are recorded for everyone. Age, cabin and port of boarding have gaps, which we examine next.
+The training data has 623 passengers and 12 columns. Passenger class, sex, siblings and spouses, parents and children, and fare are recorded for everyone. Age, cabin and port of boarding have gaps, which we examine next.
 
 Before comparing features, we check how balanced the target is. A model that predicts "did not survive" for everyone would already be right about 62% of the time on this data, so any model we build has to beat that baseline.
 
 ```{python}
 #| label: plot-target
-#| fig-alt: "Bar chart of passenger counts: 549 did not survive and 342 survived."
+#| fig-alt: "Bar chart of passenger counts: 384 did not survive and 239 survived."
 eda = train.copy()
 eda["Outcome"] = eda["Survived"].map({0: "Did not survive", 1: "Survived"})
 
@@ -154,7 +163,7 @@ plt.show()
 
 *Figure 2. Percentage of missing values per column. The two files have very similar gaps, so one cleaning recipe can serve both.*
 
-Cabin is missing for 77.1% of training passengers (687 of 891), age for 19.9% (177), and port of boarding for only 0.2% (2). The test file shows the same pattern for cabin (78.2%) and age (20.6%), and has one missing fare. No other column has gaps.
+Cabin is missing for 77.4% of training passengers (482 of 623), age for 19.7% (123), and port of boarding for only 0.2% (1). The test file shows the same pattern for cabin (78.2%) and age (20.6%), and has one missing fare. No other column has gaps.
 
 Missing values are not always random, so we check whether being missing is itself related to survival.
 
@@ -188,7 +197,7 @@ flags = train.assign(AgeKnown=train["Age"].notna(), CabinKnown=train["Cabin"].no
 
 ```{python}
 #| label: plot-missing-age
-#| fig-alt: "Bar chart: passengers with a missing age survived 29% of the time versus 41% with a recorded age."
+#| fig-alt: "Bar chart: passengers with a missing age survived 28% of the time versus 41% with a recorded age."
 fig, ax = plt.subplots(figsize=(7, 4))
 rate_bar(ax, flags, "AgeKnown", order=[False, True], xlabel="Age recorded?", labels=["No", "Yes"])
 fig.tight_layout()
@@ -199,7 +208,7 @@ plt.show()
 
 ```{python}
 #| label: plot-missing-cabin
-#| fig-alt: "Bar chart: passengers with no cabin recorded survived 30% of the time versus 67% with a cabin recorded."
+#| fig-alt: "Bar chart: passengers with no cabin recorded survived 29% of the time versus 70% with a cabin recorded."
 fig, ax = plt.subplots(figsize=(7, 4))
 rate_bar(ax, flags, "CabinKnown", order=[False, True], xlabel="Cabin recorded?", labels=["No", "Yes"])
 fig.tight_layout()
@@ -210,9 +219,9 @@ plt.show()
 
 *Figure 3. Survival rate by whether age and cabin were recorded. Use the tabs to switch between the two. The dashed line is the overall survival rate, and numbers in brackets are group sizes.*
 
-Passengers with no recorded age survived 29.4% of the time compared with 40.6% for those with a recorded age, and passengers with no recorded cabin survived 30.0% compared with 66.7% for those with a cabin. The data are therefore not missing completely at random, and it is worth keeping simple "was it recorded?" flags next to the imputed values. Cabin in particular tells us more through whether it exists than through its content, so we do not try to fill it in.
+Passengers with no recorded age survived approximately 28% of the time compared with 41% for those with a recorded age, and passengers with no recorded cabin survived approximately 29% compared with 70% for those with a cabin. These differences suggest that missingness may be associated with survival, so it is worth keeping simple "was it recorded?" flags next to the imputed values. Cabin in particular tells us more through whether it exists than through its content, so we do not try to fill it in.
 
-**Decisions for missing data.** We fill in age using the median age of passengers with the same title, because titles such as "Master" (boys) and "Mrs" separate age groups far better than one overall median. We fill the missing ports with the most common port, and the single missing fare in the test file with the median fare of the same ticket class. For cabin we keep only a yes/no flag. All fill-in values are learned from the training data only and then applied unchanged to the test data, so no information leaks from the test file.
+**Decisions for missing data.** We fill in age using the median age of passengers with the same title, because titles such as "Master" (boys) and "Mrs" separate age groups far better than one overall median. We fill the missing ports with the most common port, and the single missing fare in the test file with the median fare of the same ticket class. For cabin we keep only a yes/no flag. All fill-in values are learned from the training data only and then applied unchanged to the test data, so no information leaks from the test file. For predictive modelling, missing values are imputed separately within each cross-validation training fold using the median, preventing validation-fold information from influencing the fitted imputation values.
 
 ## Comparing each feature with survival
 
@@ -326,7 +335,7 @@ plt.show()
 
 ```{python}
 #| label: plot-age-group
-#| fig-alt: "Bar chart: survival is 58% for ages 0 to 12, about 40% between ages 13 and 60, and 23% for ages 61 and over."
+#| fig-alt: "Bar chart: survival is 61% for ages 0 to 12, 42% for ages 13 to 18, 37% for ages 19 to 35, 44% for ages 36 to 60, and 15% for ages 61 and over."
 fig, ax = plt.subplots(figsize=(7, 4))
 rate_bar(ax, known_age, "AgeGroup", xlabel="Age group (years)")
 fig.tight_layout()
@@ -337,9 +346,9 @@ plt.show()
 
 *Figure 5. Age distribution of survivors and non-survivors, and survival rate by age group. Use the tabs to switch views. Only passengers with a recorded age are shown.*
 
-The age distributions of survivors and non-survivors overlap heavily, but survivors have a clear extra bump of very young children (Figure 5, Age distribution tab). By group, 58.0% of children aged 12 or under survived, compared with 38.3% of passengers aged 19 to 35 and only 22.7% of those aged 61 or over (Figure 5, Survival by age group tab). The survival rate is nearly flat from age 19 to 60 (38.3% and 40.0%), so the age effect is concentrated in the youngest and oldest groups, which are small (69 and 22 passengers). A pattern like this shows up only weakly in a single correlation number.
+The age distributions of survivors and non-survivors overlap heavily, but survivors have a clear extra bump of very young children (Figure 5, Age distribution tab). By group, 61% of children aged 12 or under survived, compared with 37% of passengers aged 19 to 35 and only 15% of those aged 61 or over (Figure 5, Survival by age group tab). Survival rates between ages 19 and 60 ranged from 37% to 44%, so the age effect is most pronounced in the youngest and oldest groups, which are small (46 and 13 passengers). A pattern like this shows up only weakly in a single correlation number.
 
-**Include in the model?** Age is a weak feature overall, so it will not be among our top-correlated features, but the child effect in Figure 5 is real. We keep age in the processed data as an optional feature to test in flexible models. It needs imputation for the 19.9% of passengers with no age.
+**Include in the model?** Age is a weak feature overall, so it will not be among our top-correlated features, but the child effect in Figure 5 is real. We keep age in the processed data as an optional feature to test in flexible models. It needs imputation for the 19.7% of passengers with no age.
 
 ### Fare
 
@@ -384,9 +393,9 @@ plt.show()
 
 *Figure 6. Distribution of the log fare for survivors and non-survivors, and the log fare within each passenger class. Use the tabs to switch views.*
 
-Fares are extremely right-skewed (skewness of about 4.8), with a maximum of 512.33 pounds and 15 passengers who paid nothing, so we work with the logarithm of one plus the fare instead of the raw value. Survivors paid more: the median fare was 26.0 pounds for survivors and 10.5 pounds for non-survivors. Part of that is simply passenger class, because fare and class are strongly linked, but within first and second class the survivors still paid somewhat more, while in third class the two groups paid almost the same (Figure 6, Fare within each class tab).
+Fares are extremely right-skewed (skewness of about 5.0), with a maximum of 512.33 pounds and 9 passengers who paid nothing, so we work with the logarithm of one plus the fare instead of the raw value. Survivors paid more: the median fare was 26.0 pounds for survivors and 9.2 pounds for non-survivors. Part of that is simply passenger class, because fare and class are strongly linked, but within first class survivors generally paid more, while fare distributions overlap considerably within second and third class (Figure 6, Fare within each class tab).
 
-**Include in the model?** Yes, in its log form. It overlaps with passenger class, which we take into account in the feature selection below.
+**Include in the model?**  We retain fare in its log form as a candidate feature. It overlaps with passenger class, which we take into account in the feature selection below. However, fare was not among the five predictors selected from the development set.
 
 ### Family on board
 
@@ -401,7 +410,7 @@ eda["FamilyGroup"] = np.where(eda["FamilySize"] >= 5, "5+", eda["FamilySize"].as
 
 ```{python}
 #| label: plot-family-size
-#| fig-alt: "Bar chart of survival by family size: 30% alone, 55% and 58% for sizes 2 and 3, 72% for size 4, and 16% for 5 or more."
+#| fig-alt: "Bar chart of survival by family size: 31% alone, 56% for sizes 2 and 3, 71% for size 4, and 21% for 5 or more."
 fig, ax = plt.subplots(figsize=(7, 4))
 rate_bar(ax, eda, "FamilyGroup", order=["1", "2", "3", "4", "5+"],
          xlabel="Family size (passenger plus relatives on board)")
@@ -413,7 +422,7 @@ plt.show()
 
 ```{python}
 #| label: plot-alone
-#| fig-alt: "Bar chart: 30% of passengers travelling alone survived versus 51% of those with family."
+#| fig-alt: "Bar chart: 31% of passengers travelling alone survived versus 51% of those with family."
 fig, ax = plt.subplots(figsize=(7, 4))
 rate_bar(ax, eda, "IsAlone", order=[1, 0], xlabel="Travelling alone?", labels=["Alone", "With family"])
 fig.tight_layout()
@@ -424,9 +433,9 @@ plt.show()
 
 *Figure 7. Survival rate by family size and by whether the passenger travelled alone. Use the tabs to switch views.*
 
-We combined the number of siblings or spouses and the number of parents or children into a single family size (the passenger plus these relatives). Survival is not a straight-line function of family size. People travelling alone survived 30.4% of the time, small families of two to four did best (55.3%, 57.8% and 72.4%), and large families of five or more did worst, with only 16.1% surviving (Figure 7, Family size tab). Collapsing this into "alone versus with family" keeps the main contrast, 30.4% versus 50.6% (Figure 7, Travelling alone tab), in a single clean feature.
+We combined the number of siblings or spouses and the number of parents or children into a single family size (the passenger plus these relatives). Survival is not a straight-line function of family size. People travelling alone survived approximately 31% of the time, small families of two to four did best (56%, 56%, and 71%), and large families of five or more did worst, with only 21% surviving (Figure 7, Family size tab). Collapsing this into "alone versus with family" keeps the main contrast, 31% versus 51% (Figure 7, Travelling alone tab), in a single clean feature.
 
-**Include in the model?** We keep the "travelling alone" indicator. The separate counts of siblings and spouses and of parents and children have almost no linear relationship with survival (shown below), and family size is almost the same information as the alone flag.
+**Include in the model?** We retain the travelling-alone indicator and the number of parents and children aboard, which were selected among the five predictors from the development set. The number of siblings and spouses was not selected, while family size remains an optional predictor.
 
 ### Port of boarding
 
@@ -441,7 +450,7 @@ port_names = {"C": "Cherbourg", "Q": "Queenstown", "S": "Southampton"}
 
 ```{python}
 #| label: plot-port-survival
-#| fig-alt: "Bar chart: survival by port was Cherbourg 55%, Queenstown 39% and Southampton 34%."
+#| fig-alt: "Bar chart: survival by port was Cherbourg 52%, Queenstown 35% and Southampton 35%."
 fig, ax = plt.subplots(figsize=(7, 4))
 rate_bar(ax, eda, "Embarked", order=["C", "Q", "S"], xlabel="Port of boarding",
          labels=list(port_names.values()))
@@ -468,11 +477,11 @@ plt.show()
 
 :::
 
-*Figure 8. Survival rate by port of boarding and the mix of passenger classes among passengers boarding at each port. Use the tabs to switch views. Two passengers with no recorded port are left out.*
+*Figure 8. Survival rate by port of boarding and the mix of passenger classes among passengers boarding at each port. Use the tabs to switch views. One passenger with no recorded port are left out.*
 
-Passengers who boarded at Cherbourg survived more often (55.4%) than those from Queenstown (39.0%) or Southampton (33.7%). The "Class mix by port" tab offers a likely reason: 50.6% of the Cherbourg passengers travelled first class, against 19.7% at Southampton. The port effect is therefore partly the class effect in disguise, although Cherbourg passengers in third class still fared better than those from Southampton (37.9% versus 19.0%).
+Passengers who boarded at Cherbourg survived more often (approximately 52%) than those from Queenstown (35%) or Southampton (35%). The "Class mix by port" tab offers a likely reason: a substantially higher proportion of Cherbourg passengers travelled first class than those boarding at Southampton. The port effect may therefore partly reflect differences in passenger class.
 
-**Include in the model?** It is a weak, partly redundant signal, so it is a lower-priority feature. We keep it as an indicator for Cherbourg and let the ranking below decide whether it makes our top five.
+**Include in the model?**  Although boarding at Cherbourg partly overlaps with passenger class, it was selected among the five predictors from the development set.
 
 ### Title and cabin
 
@@ -482,7 +491,7 @@ Passengers who boarded at Cherbourg survived more often (55.4%) than those from 
 
 ```{python}
 #| label: plot-title
-#| fig-alt: "Bar chart of survival by title: Master 57%, Miss 70%, Mr 16%, Mrs 79%, Rare 35%."
+#| fig-alt: "Bar chart of survival by title: Master 60%, Miss 71%, Mr 16%, Mrs 79%, Rare 41%."
 fig, ax = plt.subplots(figsize=(7, 4))
 rate_bar(ax, eda, "Title", order=["Master", "Miss", "Mr", "Mrs", "Rare"], xlabel="Title in the passenger's name")
 fig.tight_layout()
@@ -513,9 +522,9 @@ plt.show()
 
 *Figure 9. Survival rate by title, and by passenger class and whether a cabin was recorded. Use the tabs to switch views.*
 
-Titles pack sex, age and marital status into one feature: "Master" (young boys) survived 57.5% of the time, while men titled "Mr" survived only 15.7%, and "Miss" and "Mrs" survived 70.3% and 79.4%. This is mostly the sex effect again, with the useful extra detail that boys fared far better than men.
+Titles pack sex, age and marital status into one feature: "Master" (young boys) survived 60% of the time, while men titled "Mr" survived only 16%, and "Miss" and "Mrs" survived 71% and 79%. This is mostly the sex effect again, with the useful extra detail that boys fared far better than men.
 
-Having a cabin recorded is linked to survival in every class (Figure 9, Cabin tab), although only 16 second-class and 12 third-class passengers have one, so those bars are noisy. A possible explanation is that cabin numbers were more likely to be recorded for people who survived to be interviewed, but these data cannot test that. Because most cabin information is missing and a recorded cabin is closely tied to first class, we treat it with care.
+Having a cabin recorded is associated with higher survival rates in every passenger class (Figure 9, Cabin tab). However, these subgroup comparisons should be interpreted cautiously because some groups may contain relatively few passengers. A possible explanation is that cabin numbers were more likely to be recorded for people who survived to be interviewed, but these data cannot test that. Because most cabin information is missing and a recorded cabin is closely tied to first class, we treat it with care.
 
 **Include in the model?** Title overlaps almost completely with sex, so we keep it in the processed data for later experiments but do not select it. The cabin-recorded flag is kept only if it adds something beyond passenger class, which we test in the correlation analysis.
 
@@ -568,10 +577,11 @@ FEATURES = [
 ] + [f"Title_{t}" for t in TITLES]
 
 train_p = preprocess(train, fill_values)
+holdout_p = preprocess(holdout, fill_values)
 test_p = preprocess(test, fill_values)
 
 # Every modelling column must now be complete in all three datasets.
-for name, d in [("training", train_p), ("test", test_p)]:
+for name, d in [("training", train_p), ("held-out", holdout_p), ("test", test_p)]:
     assert d[FEATURES].isna().sum().sum() == 0, f"missing values left in {name} data"
 print("No missing values remain in any modelling column.")
 train_p[FEATURES].dtypes.value_counts().rename("Number of columns").to_frame()
@@ -579,7 +589,7 @@ train_p[FEATURES].dtypes.value_counts().rename("Number of columns").to_frame()
 
 *Table 5. Data types of the modelling columns after the transformations. All 19 columns are numeric.*
 
-All 19 candidate modelling columns are now numeric and complete in both the training and the test data.
+All 19 candidate modelling columns are now numeric and complete in the training, held-out test, and original Kaggle test datasets.
 
 ## Which features relate most strongly to survival?
 
@@ -619,7 +629,7 @@ plt.show()
 
 The first column of the heatmap shows how each feature relates to survival, and the rest shows how the features relate to each other. Three things stand out.
 
-First, the strongest links with survival are being female (0.54), having the title "Mr" (-0.55), travelling in a lower class, meaning a higher class number (-0.34), and the log fare (0.33). Second, several features are close to duplicates of each other. Being female and having the title "Mr" are almost mirror images (-0.87), boarding at Cherbourg and at Southampton are nearly opposite (-0.78), a recorded cabin follows passenger class (-0.73), and family size follows the alone flag (-0.69). Third, passenger class and the log fare are also related (-0.66), so they partly carry the same information.
+First, the strongest links with survival are being female (0.54), having the title "Mr" (-0.55), travelling in a lower class, meaning a higher class number (-0.37), and the log fare (0.34). Second, several features are close to duplicates of each other. Being female and having the title "Mr" are almost mirror images (-0.88), boarding at Cherbourg and Southampton are nearly opposite (-0.78), a recorded cabin follows passenger class (-0.74), and family size follows the alone flag (-0.71). Third, passenger class and the log fare are also related (-0.70), so they partly carry the same information.
 
 ### Ranking the features
 
@@ -703,11 +713,11 @@ selection
 
 *Table 6. Selection of the five features most strongly correlated with survival, skipping near-duplicates of features already chosen.*
 
-The five features we select are sex, passenger class, log fare, travelling alone and boarding at Cherbourg. They come from walking down the correlation ranking and skipping any feature that nearly repeats one already chosen. The "cabin recorded" flag has the fourth-highest correlation (0.32) but is skipped because it is almost the same as passenger class (-0.73), and most of its values are missing in the first place. The title columns are left out of the ranking because they mostly restate sex (-0.87 with the title "Mr"), even though their raw correlations are as high as the top feature. The raw fare is replaced by the log fare, which correlates better with survival (0.33 versus 0.26).
+The five features we select are sex, passenger class, travelling alone, boarding at Cherbourg, and the number of parents and children aboard. They come from walking down the correlation ranking and skipping any feature that nearly repeats one already chosen. The "cabin recorded" flag is correlated with survival (0.35) but is skipped because it is strongly associated with passenger class (-0.74), and most cabin values are missing. The title columns are left out of the ranking because they mostly restate sex (-0.88 with the title "Mr"), even though their raw correlations are as high as the top feature. The raw fare is replaced by the log fare, which remains a candidate but was not among the five selected features.
 
-Two caveats matter. The log fare is just below our 0.70 cut-off for redundancy with passenger class (-0.66), so these two overlap noticeably, and the modelling stage should check that fare adds something beyond class. And boarding at Cherbourg is the weakest of the five (0.17) and partly reflects class, as seen in Figure 8.
+Two caveats matter. The log fare is strongly correlated with passenger class (-0.70), close to our 0.70 cut-off for redundancy, so these two features overlap noticeably. Log fare was not selected among the five development-set predictors. Boarding at Cherbourg has a relatively weak correlation with survival (0.14) and partly reflects passenger class, as seen in Figure 8. The number of parents and children aboard was selected despite its modest correlation with survival (0.11).
 
-The mutual information ranking agrees that sex, title and fare are the most informative. It scores travelling alone (0.021) and boarding at Cherbourg (0.014) much lower, which is another reason to treat those two as weak features. Age scores low as well (0.016), matching its weak correlation (-0.08), so the child effect we saw in Figure 5 is too concentrated in a small group to stand out in these overall measures. Family size is the opposite case: its correlation with survival is close to zero (0.02), yet its mutual information (0.048) is higher than that of travelling alone, which fits the non-straight-line pattern in Figure 7. We keep age and family size in the processed data as optional extras for flexible models, but they are not among the five features selected by correlation.
+The mutual information ranking agrees that sex, title and fare are the most informative. It scores travelling alone (approximately 0.02), parents/children (approximately 0.02) and boarding at Cherbourg (approximately 0.01) much lower, although these features were selected by the correlation-based method. Age scores around 0.05 despite its weak linear correlation with survival (-0.08), consistent with the age-group pattern in Figure 5. Family size is a similar case: its correlation with survival is close to zero (0.04), yet its mutual information (approximately 0.05) is higher than that of travelling alone, which fits the non-linear pattern in Figure 7. We keep age and family size in the processed data as optional features, although they are not among the five selected by correlation.
 
 ## Summary of the exploratory analysis
 
@@ -715,13 +725,14 @@ The mutual information ranking agrees that sex, title and fare are the most info
 |:--|:--|:--|
 | Sex | Include | Strongest single signal (see Figure 4). |
 | Passenger class | Include | Survival falls steadily from first to third class and interacts with sex. |
-| Fare (log) | Include | Survivors paid more; the log scale removes the extreme skew. Overlaps with class. |
+| Fare (log) | Not selected | Survivors paid more, and the log scale reduces extreme skew. However, fare was not among the five features selected from the development set. |
 | Travelling alone | Include | People travelling alone survived much less often than those with family. |
 | Port: Cherbourg | Include (weak) | Higher survival, but mostly a first-class effect. |
 | Age | Optional | Weak by both measures, but children survived more; needs imputation. |
 | Title | Optional | Mostly repeats sex; adds boys versus men. |
 | Cabin recorded | Drop | Nearly the same as passenger class; mostly missing. |
-| Siblings/spouses, parents/children | Drop | Almost no link with survival; the alone flag keeps the useful part. |
+| Siblings/spouses | Drop | Not among the five selected predictors; travelling alone retains some information about family travel. |
+| Parents/children | Include | Selected among the five predictors using the development dataset. |
 | Family size | Optional | No linear link, but a non-linear pattern; the alone flag is the simpler version. |
 | Passenger ID, name, ticket | Drop | Identifiers, or only useful through the title. |
 
@@ -729,11 +740,11 @@ The mutual information ranking agrees that sex, title and fare are the most info
 
 In short, a passenger's chance of survival depended most on being a woman, travelling in a higher class and having paid a higher fare, with smaller contributions from travelling with family and from the port of boarding. About a fifth of the ages and most of the cabins were missing, and the missing values were themselves linked to survival. These findings describe associations in this one historical dataset; they do not show that any single factor caused a passenger to survive.
 
-Two limitations apply to the conclusions above. First, correlation and mutual information look at one feature at a time, so they can miss combinations such as the sex-by-class interaction in Figure 4, and a feature that is weak on its own may still help a model. Second, our training data contains only 891 passengers, so small groups (for example older passengers or the rare titles) give noisy rates, and our selected features should be treated as a starting point that the model comparison can confirm or revise.
+Two limitations apply to the conclusions above. First, correlation and mutual information look at one feature at a time, so they can miss combinations such as the sex-by-class interaction in Figure 4, and a feature that is weak on its own may still help a model. Second, our development set contains only 623 passengers, so small groups (for example older passengers or the rare titles) give noisy rates, and our selected features should be treated as a starting point that the model comparison can confirm or revise.
 
 ## Saving the processed data
 
-We save the processed training and test data to the processed data folder, both using the fill values learned from the training data. The files keep all 19 candidate features, so the modelling stage can choose among them, together with the passenger identifier and, for the training file, the survival outcome. Our five selected features are stored in a short text file so that teammates can load the same list.
+We save the processed training and test data to the processed data folder, both using the fill values learned from the training data. The files keep all 19 candidate features, so the modelling stage can choose among them, together with the passenger identifier and, for the training file, the survival outcome. Our five selected features are stored in a short text file so that teammates can load the same list. The held-out test set of 268 passengers is processed using the same imputation values learned from the development set and is kept separate for final model evaluation.
 
 ```{python}
 #| label: save-processed
@@ -751,23 +762,35 @@ print(f"test_processed.csv: {len(test_p)} rows x {len(KEEP)} columns")
 
 In this section, we build a classification pipeline using logistic regression [@pedregosa2011] combined with feature standardization. Applying standardization inside the modelling pipeline ensures that feature means and standard deviations are learned strictly within each training fold during five-fold stratified cross-validation (using a fixed random seed for reproducibility).
 
-To connect our exploratory findings with the modelling stage without repeating the individual feature analyses, we test whether adding the optional features kept in the processed data (age, family size, and the passenger title indicators for "Master", "Miss", and "Mrs") together with the interaction between sex and passenger class identified in Figure 4 improves cross-validation performance over the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg).
+To connect our exploratory findings with the modelling stage without repeating the individual feature analyses, we test whether adding the optional features kept in the processed data (age, family size, and the passenger title indicators for "Master", "Miss", and "Mrs") together with the interaction between sex and passenger class identified in Figure 4 improves cross-validation performance over the five predictors selected independently within each cross-validation training fold.
 
 ```{python}
 #| label: model-comparison
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import StratifiedKFold, cross_validate, cross_val_predict
-from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve
+from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, accuracy_score, precision_score, recall_score, f1_score
 
 train_mod = pd.read_csv(PROC_DIR / "train_processed.csv")
+holdout_mod = holdout_p.copy()
 test_mod = pd.read_csv(PROC_DIR / "test_processed.csv")
 selected_5 = (PROC_DIR / "selected_features.txt").read_text().strip().splitlines()
 
-for df_m in (train_mod, test_mod):
+for df_m in (train_mod, holdout_mod, test_mod):
     df_m["Sex_x_Pclass"] = df_m["Sex_female"] * df_m["Pclass"]
+
+# Use original ages so imputation is fitted within each CV training fold
+train_mod["Age"] = train["Age"].to_numpy()
+holdout_mod["Age"] = holdout["Age"].to_numpy()
+test_mod["Age"] = test["Age"].to_numpy()
+
+# Restore missing boarding-port values for fold-specific imputation
+train_mod["Embarked_C"] = train["Embarked"].map({"C": 1, "Q": 0, "S": 0}).to_numpy()
+holdout_mod["Embarked_C"] = holdout["Embarked"].map({"C": 1, "Q": 0, "S": 0}).to_numpy()
+test_mod["Embarked_C"] = test["Embarked"].map({"C": 1, "Q": 0, "S": 0}).to_numpy()
 
 extended_cols = selected_5 + [
     "Age", "FamilySize", "Sex_x_Pclass", "Title_Master", "Title_Miss", "Title_Mrs"
@@ -775,6 +798,28 @@ extended_cols = selected_5 + [
 y_train = train_mod["Survived"]
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
 scoring = ["accuracy", "precision", "recall", "f1", "roc_auc"]
+def select_fold_features(fold_train):
+    # Learn missing-value replacements from this training fold only
+    X = fold_train[CANDIDATES]
+    X = pd.DataFrame(
+        SimpleImputer(strategy="median").fit_transform(X),
+        columns=CANDIDATES,
+        index=fold_train.index
+    )
+
+    # Rank features by correlation with survival
+    fold_corr = pd.concat([fold_train[["Survived"]], X], axis=1).corr()
+    ranked = fold_corr["Survived"].drop("Survived").abs().sort_values(ascending=False).index
+
+    # Select five features, avoiding near-duplicates
+    chosen = []
+    for feature in ranked:
+        if len(chosen) == K:
+            break
+        if all(abs(fold_corr.loc[feature, s]) < REDUNDANT_AT for s in chosen):
+            chosen.append(feature)
+
+    return chosen
 
 dummy_res = cross_validate(
     DummyClassifier(strategy="most_frequent"),
@@ -790,47 +835,106 @@ cv_rows = [{
     "ROC-AUC": dummy_res["test_roc_auc"].mean(),
 }]
 
-for label, cols in [
-    ("Logistic regression (5 selected features)", selected_5),
-    ("Logistic regression (5 selected + optional & sex-by-class interaction)", extended_cols),
+for label, extras in [
+    ("Logistic regression (5 selected features)", []),
+    ("Logistic regression (5 selected + optional & sex-by-class interaction)",
+     ["Age", "FamilySize", "Sex_x_Pclass", "Title_Master", "Title_Miss", "Title_Mrs"]),
 ]:
-    pipe = Pipeline([
-        ("scaler", StandardScaler()),
-        ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
-    ])
-    res = cross_validate(pipe, train_mod[cols], y_train, cv=cv, scoring=scoring)
+    fold_results = []
+    fold_counts = []
+
+    for train_idx, val_idx in cv.split(train_mod, y_train):
+        fold_train = train_mod.iloc[train_idx]
+        fold_val = train_mod.iloc[val_idx]
+
+        # Select features using the training fold only
+        fold_selected = select_fold_features(fold_train)
+        cols = fold_selected + [f for f in extras if f not in fold_selected]
+        fold_counts.append(len(cols))
+
+        pipe = Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
+        ])
+
+        pipe.fit(fold_train[cols], fold_train["Survived"])
+
+        actual = fold_val["Survived"]
+        predicted = pipe.predict(fold_val[cols])
+        probabilities = pipe.predict_proba(fold_val[cols])[:, 1]
+
+        fold_results.append({
+            "accuracy": accuracy_score(actual, predicted),
+            "precision": precision_score(actual, predicted, zero_division=0),
+            "recall": recall_score(actual, predicted),
+            "f1": f1_score(actual, predicted),
+            "roc_auc": roc_auc_score(actual, probabilities),
+        })
+
+    results = pd.DataFrame(fold_results)
+
     cv_rows.append({
         "Model": label,
-        "Number of features": len(cols),
-        "CV accuracy (mean ± SD)": f"{res['test_accuracy'].mean():.3f} ± {res['test_accuracy'].std():.3f}",
-        "Precision": res["test_precision"].mean(),
-        "Recall": res["test_recall"].mean(),
-        "F1-score": res["test_f1"].mean(),
-        "ROC-AUC": res["test_roc_auc"].mean(),
+        "Number of features": round(np.mean(fold_counts), 1),
+        "CV accuracy (mean ± SD)": f"{results['accuracy'].mean():.3f} ± {results['accuracy'].std(ddof=0):.3f}",
+        "Precision": results["precision"].mean(),
+        "Recall": results["recall"].mean(),
+        "F1-score": results["f1"].mean(),
+        "ROC-AUC": results["roc_auc"].mean(),
     })
 
 display(pd.DataFrame(cv_rows).round(3))
 ```
 
-*Table 8. Five-fold stratified cross-validation performance comparing the majority-class baseline, logistic regression on the five correlation-selected features, and logistic regression adding the optional features and the interaction between sex and passenger class.*
+*Table 8. Five-fold stratified cross-validation performance comparing the majority-class baseline, logistic regression on five features selected by correlation within each training fold, and logistic regression adding the optional features and the interaction between sex and passenger class.*
 
-Table 8 shows that logistic regression on the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg) achieves **77.4%** cross-validation accuracy (area under the receiver operating characteristic curve, or ROC-AUC, of 0.835), beating the 61.6% majority-class baseline by 15.8 percentage points. Adding the optional features (age, family size, and passenger titles) and the interaction between sex and passenger class further lifts cross-validation accuracy by 5.2 percentage points to **82.6%** (F1-score of 0.761, ROC-AUC of **0.871**), confirming that controlling for age, family size, youth and marital titles, and the sex-by-class interaction adds substantial predictive power in a multivariable linear model.
+Table 8 presents the performance of the logistic regression models evaluated using five-fold stratified cross-validation. The model using five features selected independently within each training fold achieved a mean accuracy of 77.8% (F1 = 0.711; ROC-AUC = 0.829), exceeding the majority-class baseline accuracy of 61.6%. Including the optional predictors and the interaction between sex and passenger class increased mean accuracy to 82.2% (F1 = 0.756; ROC-AUC = 0.870), representing an improvement of 4.4 percentage points over the five-feature model. These findings suggest that the extended model provides better predictive performance on the development data. Performance on the independent held-out test set is reported separately in Section 3.1.
 
 ## Diagnostic evaluation and feature weights
 
-We inspect out-of-fold predictions and standardized coefficients for the extended logistic regression model across the 891 training passengers, and save the resulting predictions for the 418 unlabelled test passengers to the processed data folder.
+We examine out-of-fold predictions and standardized coefficients for the extended logistic regression model using the 623-observation development set. We then evaluate the final model on the independent held-out test set of 268 passengers and generate survival predictions for Kaggle's original 418 unlabeled test observations.
 
 ```{python}
 #| label: model-diagnostics
 ext_pipe = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),
     ("scaler", StandardScaler()),
     ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
 ])
-oof_pred = cross_val_predict(ext_pipe, train_mod[extended_cols], y_train, cv=cv)
-oof_prob = cross_val_predict(ext_pipe, train_mod[extended_cols], y_train, cv=cv, method="predict_proba")[:, 1]
+# Generate out-of-fold predictions with feature selection within each training fold
+oof_pred = np.zeros(len(train_mod), dtype=int)
+oof_prob = np.zeros(len(train_mod), dtype=float)
+
+for train_idx, val_idx in cv.split(train_mod, y_train):
+    fold_train = train_mod.iloc[train_idx]
+    fold_val = train_mod.iloc[val_idx]
+
+    fold_selected = select_fold_features(fold_train)
+    optional = ["Age", "FamilySize", "Sex_x_Pclass",
+                "Title_Master", "Title_Miss", "Title_Mrs"]
+    fold_cols = fold_selected + [f for f in optional if f not in fold_selected]
+
+    fold_pipe = Pipeline([
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler()),
+        ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
+    ])
+
+    fold_pipe.fit(fold_train[fold_cols], fold_train["Survived"])
+    oof_pred[val_idx] = fold_pipe.predict(fold_val[fold_cols])
+    oof_prob[val_idx] = fold_pipe.predict_proba(fold_val[fold_cols])[:, 1]
 cm = confusion_matrix(y_train, oof_pred)
 
 ext_pipe.fit(train_mod[extended_cols], y_train)
+# Evaluate the final model on the held-out test set
+y_holdout = holdout_mod["Survived"]
+holdout_pred = ext_pipe.predict(holdout_mod[extended_cols])
+
+print("Held-out accuracy:", round(accuracy_score(y_holdout, holdout_pred), 3))
+print("Held-out F1 score:", round(f1_score(y_holdout, holdout_pred), 3))
+print("Held-out confusion matrix:")
+print(confusion_matrix(y_holdout, holdout_pred))
 coefs = pd.Series(ext_pipe.named_steps["logreg"].coef_[0], index=extended_cols).sort_values()
 
 test_pred = ext_pipe.predict(test_mod[extended_cols])
@@ -848,7 +952,7 @@ pd.DataFrame({
 
 ```{python}
 #| label: plot-cm-roc
-#| fig-alt: "Side-by-side out-of-fold confusion matrix (490 true negatives, 59 false positives, 96 false negatives, 246 true positives) and ROC curve (AUC = 0.869) for the extended logistic regression model."
+#| fig-alt: "Out-of-fold confusion matrix showing 340 true negatives, 44 false positives, 67 false negatives, and 172 true positives, alongside an ROC curve with AUC 0.863."
 cm_pct = cm / cm.sum(axis=1, keepdims=True) * 100
 annot = np.array([
     [f"{cm[i, j]}\n({cm_pct[i, j]:.1f}%)" for j in range(2)]
@@ -886,6 +990,7 @@ FEATURE_NAMES = {
     "Title_Miss": "Title: Miss", "FareLog": "Fare (log)", "Embarked_C": "Boarded Cherbourg",
     "IsAlone": "Travelling alone", "Sex_x_Pclass": "Female × Class", "Age": "Age",
     "Pclass": "Passenger class", "FamilySize": "Family size",
+    "Parch": "Parents and children aboard",
 }
 fig, ax = plt.subplots(figsize=(7.5, 4.2))
 colors = [SURV if v > 0 else DIED for v in coefs.values]
@@ -900,13 +1005,13 @@ plt.show()
 
 *Figure 12. Out-of-fold confusion matrix and ROC curve (first tab) and standardized coefficients (second tab) for the extended logistic regression pipeline. Use the tabs to switch views.*
 
-Across all 891 training passengers, the model correctly classifies **88.9%** of non-survivors (490 of 549) and **71.9%** of survivors (246 of 342), with a precision of 80.7% (Figure 12). On the 418 unlabelled test passengers, it predicts 160 survivors (38.3%), matching the 38.4% observed training survival rate.
+Across the 623 development observations, the extended logistic regression model correctly classified 340 of 384 non-survivors (88.5%) and 172 of 239 survivors (72.0%), with a precision of 79.6% and an ROC-AUC of 0.863 (Figure 12). On the independent held-out test set of 268 passengers, the model achieved an accuracy of 84.3% and an F1 score of 0.784. The held-out confusion matrix showed 150 true negatives, 15 false positives, 27 false negatives, and 76 true positives. Predictions for Kaggle's original 418 unlabeled test observations were generated separately and were not used to calculate performance metrics.
 
 # Discussion and conclusions
 
-Our results show that a regularized logistic regression pipeline predicts Titanic passenger survival with **77.4%** five-fold cross-validation accuracy using the five correlation-selected features (sex, passenger class, log fare, travelling alone, and boarding at Cherbourg), well above the 61.6% majority-class baseline. Incorporating the optional features identified during our exploratory analysis (age, family size, and passenger titles) together with the interaction between sex and passenger class lifts cross-validation accuracy to **82.6%** (F1-score of 0.761, ROC-AUC of 0.871). The standardized weights confirm that passenger sex, youth and marital titles ("Master", "Mrs", and "Miss"), ticket class, log fare, and family size are the primary predictors, consistent with historical accounts of the evacuation [@hall1986; @elinder2012].
+Using five-fold stratified cross-validation on the 623-observation development set, logistic regression achieved a mean accuracy of 77.8% (F1 = 0.711; ROC-AUC = 0.829) with five features selected independently within each training fold, compared with 61.6% for the majority-class baseline. Incorporating additional predictors (age, family size, and passenger title indicators) and the interaction between sex and passenger class improved mean accuracy to 82.2% (F1 = 0.756; ROC-AUC = 0.870). On the independent held-out test set of 268 passengers, the extended model achieved 84.3% accuracy and an F1 score of 0.784. These results suggest that the extended logistic regression model provides better predictive performance than the five-feature model. The observed associations involving passenger sex and class are consistent with historical accounts of the evacuation [@hall1986; @elinder2012].
 
-Two main limitations apply to this baseline analysis: (1) our findings describe statistical associations in a single 1912 dataset rather than causal effects, and missing values in age (20%) and cabin (77%) were not missing completely at random; and (2) we evaluated default ridge regularization with a linear log-odds boundary, where recall on survivors (71.9%) remains lower than specificity on non-survivors (88.9%). Future work can explore hyperparameter tuning of the regularization strength, probability threshold adjustment, or non-linear classifiers.
+Two main limitations apply to this analysis: (1) our findings describe statistical associations in a single 1912 dataset rather than causal effects, and missing values in age (20%) and cabin (77%) may not be missing completely at random; and (2) we evaluated default ridge regularization with a linear log-odds boundary, where recall on survivors (72.0%) remains lower than specificity on non-survivors (88.5%). An additional limitation is that the held-out evaluation uses a single stratified split, so performance estimates may vary across different partitions of the data. Future work can explore hyperparameter tuning of the regularization strength, probability threshold adjustment, or non-linear classifiers.
 
 # References
 
