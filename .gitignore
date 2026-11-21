@@ -7,3 +7,10 @@
 # Quarto cache and intermediate notebooks
 /.quarto/
 **/*.quarto_ipynb
+
+# Downloaded Kaggle competition data
+data/raw/*
+!data/raw/.gitkeep
+
+# Kaggle credentials
+**/kaggle.json
