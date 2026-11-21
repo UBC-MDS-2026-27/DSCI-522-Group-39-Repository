@@ -25,7 +25,7 @@ In this project, we ask a predictive research question: **how accurately can a p
 
 # Exploratory data analysis
 
-This section explores the Titanic passenger data before any model is built. We check the structure of the data and how much of it is missing, compare every passenger characteristic with the outcome we want to predict (whether the passenger survived, coded 1, or died, coded 0), and clean and transform the data so that it is ready for modelling. We finish by ranking the features by how strongly they relate to survival and choosing the four to five that we will carry into the model.
+This section explores the Titanic passenger data before any model is built. We check the structure of the data and how much of it is missing, compare every passenger characteristic with the outcome we want to predict (whether the passenger survived, coded 1, or died, coded 0), and clean and transform the data so that it is ready for modelling. We finish by ranking the features by how strongly they relate to survival and choosing the five that we will carry into the initial model.
 
 We use Python with pandas [@mckinney2010], scikit-learn [@pedregosa2011], matplotlib [@hunter2007] and seaborn [@waskom2021]. The passenger records come from the Kaggle "Titanic: Machine Learning from Disaster" competition [@cukierski2012]. Each row is one passenger. Kaggle supplies two files: a training file of 891 passengers whose survival outcome is known, and a test file of 418 passengers whose outcome is hidden.
 
@@ -287,7 +287,7 @@ plt.show()
 
 Passengers with no recorded age survived approximately 28% of the time compared with 41% for those with a recorded age, and passengers with no recorded cabin survived approximately 29% compared with 70% for those with a cabin. These differences suggest that missingness may be associated with survival, so it is worth keeping simple "was it recorded?" flags next to the imputed values. Cabin in particular tells us more through whether it exists than through its content, so we do not try to fill it in.
 
-**Decisions for missing data.** We fill in age using the median age of passengers with the same title, because titles such as "Master" (boys) and "Mrs" separate age groups far better than one overall median. We fill the missing ports with the most common port, and the single missing fare in the test file with the median fare of the same ticket class. For cabin we keep only a yes/no flag. All fill-in values are learned from the training data only and then applied unchanged to the test data, so no information leaks from the test file. For predictive modelling, missing values are imputed separately within each cross-validation training fold using the median, preventing validation-fold information from influencing the fitted imputation values.
+**Decisions for missing data.** We fill in age using the median age of passengers with the same title, because titles such as "Master" (boys) and "Mrs" separate age groups far better than one overall median. We fill the missing ports with the most common port, and the single missing fare in the test file with the median fare of the same ticket class. For cabin we keep only a yes/no flag. All fill-in values are learned from the training data only and then applied unchanged to the test data, so no information leaks from the test file. For predictive modelling, missing values are imputed separately within each cross-validation training fold using the same strategies, preventing validation-fold information from influencing the imputation values.
 
 ## Comparing each feature with survival
 
@@ -600,18 +600,26 @@ The passenger identifier is only a row number and cannot help predict survival. 
 
 ## Transforming the data for modelling
 
-We now turn the cleaned columns into a form a model can use. The steps are: fill in the missing values using statistics learned **from the training data only**, create the extra features described above, take the logarithm of the fare, and convert categories to 0/1 columns. We deliberately do not scale the numeric columns here. Scaling will be done inside the modelling pipeline, so that its mean and spread are also learned from training data only.
+We now turn the cleaned columns into a form a model can use. The steps are: fill in missing values using statistics learned from the training data, create the extra features described above, take the logarithm of the fare, and convert categories to 0/1 columns. For the final model and held-out evaluation, the imputation values are learned from the full development training set. During cross-validation, these values are learned separately within each training fold and then applied to its validation fold. We deliberately do not scale the numeric columns here. Scaling is performed inside the modelling pipeline, so its means and standard deviations are also learned separately within each training fold.
 
 ```{python}
 #| label: learn-imputation
-train_feat = add_simple_features(train)
-fill_values = {
-    "age_by_title": train_feat.groupby("Title")["Age"].median(),
-    "age_overall": train_feat["Age"].median(),
-    "embarked_mode": train_feat["Embarked"].mode()[0],
-    "fare_by_class": train_feat.groupby("Pclass")["Fare"].median(),
-    "fare_overall": train_feat["Fare"].median(),
-}
+def learn_fill_values(df):
+    """Learn missing-value replacements using only the supplied training data."""
+    train_feat = add_simple_features(df)
+
+    return {
+        "age_by_title": train_feat.groupby("Title")["Age"].median(),
+        "age_overall": train_feat["Age"].median(),
+        "embarked_mode": train_feat["Embarked"].mode()[0],
+        "fare_by_class": train_feat.groupby("Pclass")["Fare"].median(),
+        "fare_overall": train_feat["Fare"].median(),
+    }
+
+
+# Learn values from the full development set for the final model and held-out evaluation.
+fill_values = learn_fill_values(train)
+
 display(fill_values["age_by_title"].rename("Median age (years)").to_frame())
 display(fill_values["fare_by_class"].rename("Median fare (pounds)").to_frame())
 print("Most common port in the training set:", fill_values["embarked_mode"])
@@ -660,6 +668,8 @@ All 19 candidate modelling columns are now numeric and complete in the training,
 ## Which features relate most strongly to survival?
 
 We now measure the relationship between every feature and survival, and between the features themselves. We use the Pearson correlation coefficient, which for 0/1 columns is also known as the point-biserial or phi coefficient. It runs from -1 to 1: a positive value means the feature goes up when survival is more likely, and a negative value means the opposite. We compute it on the imputed training set, so the correlation for age includes the filled-in ages.
+
+The correlation matrix and feature rankings below describe relationships in the full development training set and help explain our feature-selection approach. For cross-validation, we repeat the same correlation-based selection procedure independently within each training fold, without using its validation fold. The full development set is used to select features again when fitting the final model for held-out evaluation.
 
 ### Correlation matrix
 
@@ -826,7 +836,7 @@ print(f"test_processed.csv: {len(test_p)} rows x {len(KEEP)} columns")
 
 # Predictive modelling with logistic regression
 
-In this section, we build a classification pipeline using logistic regression [@pedregosa2011] combined with feature standardization. Applying standardization inside the modelling pipeline ensures that feature means and standard deviations are learned strictly within each training fold during five-fold stratified cross-validation (using a fixed random seed for reproducibility).
+In this section, we build a classification pipeline using logistic regression [@pedregosa2011] combined with feature standardization. During five-fold stratified cross-validation, imputation values and selected features are learned separately within each training fold. The validation fold is processed using the corresponding training-fold values and selected features. Standardization is also fitted within the modelling pipeline, ensuring that information from each validation fold does not influence model fitting.
 
 To connect our exploratory findings with the modelling stage without repeating the individual feature analyses, we test whether adding the optional features kept in the processed data (age, family size, and the passenger title indicators for "Master", "Miss", and "Mrs") together with the interaction between sex and passenger class identified in Figure 4 improves cross-validation performance over the five predictors selected independently within each cross-validation training fold.
 
@@ -835,9 +845,8 @@ To connect our exploratory findings with the modelling stage without repeating t
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import StratifiedKFold, cross_validate, cross_val_predict
+from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, accuracy_score, precision_score, recall_score, f1_score
 
 train_mod = pd.read_csv(PROC_DIR / "train_processed.csv")
@@ -845,55 +854,76 @@ holdout_mod = holdout_p.copy()
 test_mod = pd.read_csv(PROC_DIR / "test_processed.csv")
 selected_5 = (PROC_DIR / "selected_features.txt").read_text().strip().splitlines()
 
+# Create the sex-by-class interaction for the final datasets.
 for df_m in (train_mod, holdout_mod, test_mod):
     df_m["Sex_x_Pclass"] = df_m["Sex_female"] * df_m["Pclass"]
-
-# Use original ages so imputation is fitted within each CV training fold
-train_mod["Age"] = train["Age"].to_numpy()
-holdout_mod["Age"] = holdout["Age"].to_numpy()
-test_mod["Age"] = test["Age"].to_numpy()
-
-# Restore missing boarding-port values for fold-specific imputation
-train_mod["Embarked_C"] = train["Embarked"].map({"C": 1, "Q": 0, "S": 0}).to_numpy()
-holdout_mod["Embarked_C"] = holdout["Embarked"].map({"C": 1, "Q": 0, "S": 0}).to_numpy()
-test_mod["Embarked_C"] = test["Embarked"].map({"C": 1, "Q": 0, "S": 0}).to_numpy()
 
 extended_cols = selected_5 + [
     "Age", "FamilySize", "Sex_x_Pclass", "Title_Master", "Title_Miss", "Title_Mrs"
 ]
-y_train = train_mod["Survived"]
+
+y_train = train["Survived"]
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
 scoring = ["accuracy", "precision", "recall", "f1", "roc_auc"]
+
+
+def prepare_fold_data(train_idx, val_idx):
+    """Preprocess each fold using imputation values learned from its training part only."""
+    fold_train_raw = train.iloc[train_idx].copy()
+    fold_val_raw = train.iloc[val_idx].copy()
+
+    # Learn imputation values from this training fold only.
+    fold_fill_values = learn_fill_values(fold_train_raw)
+
+    # Apply the same fold-specific values to training and validation data.
+    fold_train = preprocess(fold_train_raw, fold_fill_values)
+    fold_val = preprocess(fold_val_raw, fold_fill_values)
+
+    # Create the interaction feature.
+    for df_fold in (fold_train, fold_val):
+        df_fold["Sex_x_Pclass"] = df_fold["Sex_female"] * df_fold["Pclass"]
+
+    return fold_train, fold_val
+
+
 def select_fold_features(fold_train):
-    # Learn missing-value replacements from this training fold only
-    X = fold_train[CANDIDATES]
-    X = pd.DataFrame(
-        SimpleImputer(strategy="median").fit_transform(X),
-        columns=CANDIDATES,
-        index=fold_train.index
+    """Select five features using correlations calculated on the training fold only."""
+    fold_corr = fold_train[["Survived"] + CANDIDATES].corr()
+
+    ranked = (
+        fold_corr["Survived"]
+        .drop("Survived")
+        .abs()
+        .sort_values(ascending=False)
+        .index
     )
 
-    # Rank features by correlation with survival
-    fold_corr = pd.concat([fold_train[["Survived"]], X], axis=1).corr()
-    ranked = fold_corr["Survived"].drop("Survived").abs().sort_values(ascending=False).index
-
-    # Select five features, avoiding near-duplicates
     chosen = []
     for feature in ranked:
         if len(chosen) == K:
             break
-        if all(abs(fold_corr.loc[feature, s]) < REDUNDANT_AT for s in chosen):
+
+        if all(
+            abs(fold_corr.loc[feature, selected]) < REDUNDANT_AT
+            for selected in chosen
+        ):
             chosen.append(feature)
 
     return chosen
 
+
+# The dummy classifier does not use the predictors.
 dummy_res = cross_validate(
     DummyClassifier(strategy="most_frequent"),
-    train_mod[selected_5], y_train, cv=cv, scoring=["accuracy", "roc_auc"]
+    np.zeros((len(y_train), 1)),
+    y_train,
+    cv=cv,
+    scoring=["accuracy", "roc_auc"]
 )
+
 cv_rows = [{
     "Model": "Baseline (most frequent outcome)",
-    "Number of features": len(selected_5),
+    "Number of features": 0,
     "CV accuracy (mean ± SD)": f"{dummy_res['test_accuracy'].mean():.3f} ± {dummy_res['test_accuracy'].std():.3f}",
     "Precision": 0.0,
     "Recall": 0.0,
@@ -909,17 +939,15 @@ for label, extras in [
     fold_results = []
     fold_counts = []
 
-    for train_idx, val_idx in cv.split(train_mod, y_train):
-        fold_train = train_mod.iloc[train_idx]
-        fold_val = train_mod.iloc[val_idx]
-
-        # Select features using the training fold only
+    for train_idx, val_idx in cv.split(train, y_train):
+        # Preprocessing and feature selection use the training fold only.
+        fold_train, fold_val = prepare_fold_data(train_idx, val_idx)
         fold_selected = select_fold_features(fold_train)
+
         cols = fold_selected + [f for f in extras if f not in fold_selected]
         fold_counts.append(len(cols))
 
         pipe = Pipeline([
-            ("imputer", SimpleImputer(strategy="median")),
             ("scaler", StandardScaler()),
             ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
         ])
@@ -964,25 +992,28 @@ We examine out-of-fold predictions and standardized coefficients for the extende
 ```{python}
 #| label: model-diagnostics
 ext_pipe = Pipeline([
-    ("imputer", SimpleImputer(strategy="median")),
     ("scaler", StandardScaler()),
     ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
 ])
-# Generate out-of-fold predictions with feature selection within each training fold
+
+# Generate out-of-fold predictions with preprocessing and feature selection
+# performed independently within each training fold.
 oof_pred = np.zeros(len(train_mod), dtype=int)
 oof_prob = np.zeros(len(train_mod), dtype=float)
 
-for train_idx, val_idx in cv.split(train_mod, y_train):
-    fold_train = train_mod.iloc[train_idx]
-    fold_val = train_mod.iloc[val_idx]
+for train_idx, val_idx in cv.split(train, y_train):
+    fold_train, fold_val = prepare_fold_data(train_idx, val_idx)
 
     fold_selected = select_fold_features(fold_train)
-    optional = ["Age", "FamilySize", "Sex_x_Pclass",
-                "Title_Master", "Title_Miss", "Title_Mrs"]
-    fold_cols = fold_selected + [f for f in optional if f not in fold_selected]
+    optional = [
+        "Age", "FamilySize", "Sex_x_Pclass",
+        "Title_Master", "Title_Miss", "Title_Mrs"
+    ]
+    fold_cols = fold_selected + [
+        f for f in optional if f not in fold_selected
+    ]
 
     fold_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
         ("scaler", StandardScaler()),
         ("logreg", LogisticRegression(C=1.0, max_iter=1000, random_state=SEED)),
     ])
@@ -990,10 +1021,14 @@ for train_idx, val_idx in cv.split(train_mod, y_train):
     fold_pipe.fit(fold_train[fold_cols], fold_train["Survived"])
     oof_pred[val_idx] = fold_pipe.predict(fold_val[fold_cols])
     oof_prob[val_idx] = fold_pipe.predict_proba(fold_val[fold_cols])[:, 1]
+
 cm = confusion_matrix(y_train, oof_pred)
 
+# Fit the final model using the complete development training set.
+# Imputation values and selected features are learned from that full set.
 ext_pipe.fit(train_mod[extended_cols], y_train)
-# Evaluate the final model on the held-out test set
+
+# Evaluate the final model on the independent held-out test set.
 y_holdout = holdout_mod["Survived"]
 holdout_pred = ext_pipe.predict(holdout_mod[extended_cols])
 
@@ -1001,10 +1036,15 @@ print("Held-out accuracy:", round(accuracy_score(y_holdout, holdout_pred), 3))
 print("Held-out F1 score:", round(f1_score(y_holdout, holdout_pred), 3))
 print("Held-out confusion matrix:")
 print(confusion_matrix(y_holdout, holdout_pred))
-coefs = pd.Series(ext_pipe.named_steps["logreg"].coef_[0], index=extended_cols).sort_values()
+
+coefs = pd.Series(
+    ext_pipe.named_steps["logreg"].coef_[0],
+    index=extended_cols
+).sort_values()
 
 test_pred = ext_pipe.predict(test_mod[extended_cols])
 test_prob = ext_pipe.predict_proba(test_mod[extended_cols])[:, 1]
+
 pd.DataFrame({
     "PassengerId": test_mod["PassengerId"],
     "Survived": test_pred,
