@@ -100,7 +100,9 @@ The project uses the MIT License for project code and the Creative Commons Attri
 
 ## Generative AI use
 
-Generative AI assisted with drafting this README and the project contribution and conduct documents. The authors are responsible for reviewing, correcting, and verifying all project content.
+Generative AI tools (including ChatGPT, GitHub Copilot, and Gemini) assisted with brainstorming, reviewing methodology and code, debugging, and drafting project documentation. All team members are responsible for reviewing, testing, correcting, and verifying all project content and results.
+
+Each team member's AI usage details, representative prompts, and verification procedures are documented in [`Prompt.md`](Prompt.md).
 
 Example prompt: “Fill the README, contributing guide, and code of conduct based on the examples shared, adapting them to our Titanic survival-prediction project.”
 

@@ -17,6 +17,10 @@ format:
           </style>
 ---
 
+# Summary
+
+This report investigates how accurately passenger survival on the RMS *Titanic* can be predicted from pre-departure demographic and ticket records, and whether domain-informed optional predictors and interactions improve upon a core set of correlation-selected features. Using the publicly available Kaggle Titanic dataset (891 labelled passengers partitioned via a 70/30 stratified split into 623 development observations and 268 held-out test observations, plus 418 unlabelled test records), we perform exploratory data analysis, fold-isolated missing-value imputation and correlation-based feature selection, and evaluate regularized logistic regression pipelines. On the development set, five-fold stratified cross-validation accuracy rises from 61.6% for a majority-class baseline to 77.8% for a five-feature logistic regression model and 82.2% (area under the receiver operating characteristic curve of 0.870) when adding age, family size, passenger title indicators, and the interaction between sex and passenger class. On the independent held-out test set, the extended logistic regression model achieves 84.3% accuracy and an F1 score of 0.784, confirming that passenger sex, youth and marital titles, ticket class, and family structure are the strongest predictors of survival. These results reflect statistical associations within a single historical disaster where age and cabin records were not missing completely at random, and they should not be interpreted as causal effects.
+
 # Introduction
 
 The sinking of the RMS *Titanic* on April 15, 1912 remains one of the best-documented maritime disasters in modern history. Historical and sociological studies have shown that survival was strongly shaped by evacuation norms ("women and children first") and differences in social class [@hall1986; @elinder2012].
@@ -132,9 +136,9 @@ print(f"Test data: {test.shape[0]} rows x {test.shape[1]} columns")
 
 ## Training and test data
 
-The Kaggle Titanic dataset consists of two files: `train.csv`, containing 891 passengers with known survival outcomes, and `test.csv`, containing 418 passengers whose survival outcomes are withheld. To enable independent model evaluation, we partition the 891 labeled observations into a training set (70%) and a held-out test set (30%) using stratified random sampling to preserve approximately the original proportions of survivors and non-survivors.
+The Kaggle Titanic dataset consists of two files: a training file containing 891 passengers with known survival outcomes, and a test file containing 418 passengers whose survival outcomes are withheld. To enable independent model evaluation, we partition the 891 labelled observations into a training set (70%) and a held-out test set (30%) using stratified random sampling to preserve approximately the original proportions of survivors and non-survivors.
 
-We use the new training set for exploratory data analysis, preprocessing decisions, and model development. The held-out test set is reserved for final performance evaluation, while Kaggle's original `test.csv` remains separate for generating predictions.
+We use the new training set for exploratory data analysis, preprocessing decisions, and model development. The held-out test set is reserved for final performance evaluation, while Kaggle's original unlabelled test file remains separate for generating predictions.
 
 ## The variables
 
@@ -543,7 +547,7 @@ plt.show()
 
 :::
 
-*Figure 8. Survival rate by port of boarding and the mix of passenger classes among passengers boarding at each port. Use the tabs to switch views. One passenger with no recorded port are left out.*
+*Figure 8. Survival rate by port of boarding and the mix of passenger classes among passengers boarding at each port. Use the tabs to switch views. One passenger with no recorded port is left out.*
 
 Passengers who boarded at Cherbourg survived more often (approximately 52%) than those from Queenstown (35%) or Southampton (35%). The "Class mix by port" tab offers a likely reason: a substantially higher proportion of Cherbourg passengers travelled first class than those boarding at Southampton. The port effect may therefore partly reflect differences in passenger class.
 
