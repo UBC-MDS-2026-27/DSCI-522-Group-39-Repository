@@ -2,24 +2,23 @@
 
 ## Analysis report
 
-<a href="https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository">DSCI-522-Group-39-Repository</a> © 2026 by <a href="https://example.com">Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid</a> is licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nd.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
+<a href="https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository">DSCI-522-Group-39-Repository</a> © 2026 by Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid is licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nd.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
 
-This is a human-readable summary of (and not a substitute for) the [license](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
+This is a human-readable summary of (and not a substitute for) the [license](https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode.en).
 
 ## You are free to:
 
-- **Share** — copy and redistribute the material in any medium or format
-- **Adapt** — remix, transform, and build upon the material
+- **Share** - copy and redistribute the material in any medium or format
 
 The licensor cannot revoke these freedoms as long as you follow the license terms.
 
 ## Under the following terms:
 
-- **Attribution** — You must give appropriate credit (mentioning that your work is derived from work that is Copyright © Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid and, where practical, linking to https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository, provide a link to the license, and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
-- **NonCommercial** — You may not use the material for commercial purposes.
-- **ShareAlike** — If you remix, transform, or build upon the material, you must distribute your contributions under the same license as the original.
+- **Attribution** - You must give appropriate credit to Tahir Hussain, Jaylon Huang, Rakshit Kapoor, and Teeba Obaid, provide a link to the [project](https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository) and the [license](https://creativecommons.org/licenses/by-nc-nd/4.0/), and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
+- **NonCommercial** - You may not use the material for commercial purposes.
+- **NoDerivatives** - If you remix, transform, or build upon the material, you may not distribute the modified material.
 
-**No additional restrictions** — You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits.
+**No additional restrictions** - You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits.
 
 ## Notices:
 
