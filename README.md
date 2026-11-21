@@ -106,4 +106,5 @@ Example prompt: “Fill the README, contributing guide, and code of conduct base
 
 ## Report
 
-The rendered analysis report is available in the repository at [`analysis/titanic-survival-prediction.html`](analysis/titanic-survival-prediction.html) (generated from [`analysis/titanic-survival-prediction.qmd`](analysis/titanic-survival-prediction.qmd)).
+- **Published report (GitHub Pages):** <https://ubc-mds-2026-27.github.io/DSCI-522-Group-39-Repository/analysis/titanic-survival-prediction.html>
+- **Repository files:** [`analysis/titanic-survival-prediction.html`](analysis/titanic-survival-prediction.html) (rendered from [`analysis/titanic-survival-prediction.qmd`](analysis/titanic-survival-prediction.qmd))
