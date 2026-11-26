@@ -19,5 +19,5 @@ RUN echo "UV_PROJECT_ENVIRONMENT=$UV_PROJECT_ENVIRONMENT" >> /etc/environment
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked
 # For Linux laptops only:
-# RUN echo "StrictModes no" > /etc/ssh/sshd_config.d/container.conf
+RUN echo "StrictModes no" > /etc/ssh/sshd_config.d/container.conf
 CMD ["/usr/sbin/sshd", "-D"]
