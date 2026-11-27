@@ -17,30 +17,77 @@ Minor documentation corrections may be proposed directly through a pull request.
 
 ## Reproducing the Project Environment
 
-Our project uses Python, [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage dependencies, and [Quarto](https://quarto.org/docs/get-started/) to create the report.
+This project runs in a Docker container so all contributors share the exact same Python, `uv`, and Quarto environment.
 
-Install Python 3.12 or newer, uv, and Quarto before proceeding.
+### 1. Initial Setup
 
-Clone the repository and open its directory:
+Before starting, follow the setup steps in [`README.md`](README.md) to:
+1. Verify that your Git identity (`git config --global user.name` and `git config --global user.email`) is configured on your host machine (mounted into the container via `~/.gitconfig`).
+2. Generate an SSH key (`ssh-keygen -t ed25519`) if you do not already have `~/.ssh/id_ed25519.pub`.
+3. Clone the repository and pull the pre-built project Docker image (`docker compose pull`).
 
-```sh
-git clone https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository.git
-cd DSCI-522-Group-39-Repository
-```
+*(Note: To keep run-only instructions in [`README.md`](README.md) and contributor instructions here, we do not repeat those initial setup commands in this file.)*
 
-Set up the Python environment:
+### 2. Connect Positron to the Container over SSH
 
-```sh
-uv sync --locked
-```
+1. Install [Positron](https://positron.posit.co/) on your local machine if you have not already.
+2. Start the container in the background from the repository root:
+   ```bash
+   docker compose up -d
+   ```
+3. In Positron, open the Command Palette (`Cmd+Shift+P` on macOS / `Ctrl+Shift+P` on Windows and Linux), choose **Remote-SSH: Connect to Host...**, and connect to:
+   ```bash
+   ssh -p 2222 root@localhost
+   ```
+4. Once connected, open the `/workspace` folder in Positron.
+5. Select the container's Python interpreter located at `/opt/venv/bin/python` (configured via `UV_PROJECT_ENVIRONMENT=/opt/venv` in the `Dockerfile`).
+6. In the Positron terminal inside the container, verify that your Git identity is recognized:
+   ```bash
+   git config user.name
+   git config user.email
+   ```
+7. When you finish working, disconnect from the remote session in Positron and stop the container from your host terminal:
+   ```bash
+   docker compose down
+   ```
 
-Run the analysis and render the Quarto project:
+#### Troubleshooting SSH and Container Connection Issues
 
-```sh
+- **`~/.ssh/id_ed25519.pub` became a directory**: If you ran `docker compose up -d` before generating `~/.ssh/id_ed25519.pub`, Docker creates an empty directory at `~/.ssh/id_ed25519.pub` on your host machine, causing mount or login errors. To fix this, stop the container (`docker compose down`), remove the empty directory (`rmdir ~/.ssh/id_ed25519.pub`), generate your SSH key (`ssh-keygen -t ed25519`), and start the container again.
+- **Host key verification failed (`WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!`)**: When the container image is rebuilt, its SSH host key changes. Run `ssh-keygen -R "[localhost]:2222"` on your local machine to clear the old key and reconnect.
+- **SSH still prompts for a password on Linux**: Ensure your public key exists at `~/.ssh/id_ed25519.pub` with readable permissions (`chmod 644 ~/.ssh/id_ed25519.pub`) and that your image is up to date (`docker compose pull`), which includes `StrictModes no` in `/etc/ssh/sshd_config.d/container.conf`.
+
+### 3. Adding or Updating Python Packages
+
+Because dependencies are baked into the Docker image at `/opt/venv`, follow these steps whenever you add or update a Python package:
+
+1. Create and switch to a feature branch for your change.
+2. Inside the running container (in `/workspace`), add or update the package with `uv` using exact version pinning:
+   ```bash
+   uv add "package-name==x.y.z"
+   ```
+3. Verify that both `pyproject.toml` and `uv.lock` are updated, then commit and push them to GitHub (and merge the PR into `main` once reviewed).
+4. Pushing dependency or `Dockerfile` changes to `main` automatically triggers the `.github/workflows/publish-dockerhub.yml` GitHub Actions workflow, which builds the new multi-platform image, pushes it to Docker Hub (`tahir1710/dsci-522-group-39-repository`), and commits the updated `sha-` image tag to `docker-compose.yml`.
+5. Once the workflow finishes, all team members should update their local branch and pull the new image:
+   ```bash
+   git pull
+   docker compose down
+   docker compose pull
+   docker compose up -d
+   ```
+
+### 4. Rendering the Report and Updating GitHub Pages
+
+After editing `analysis/titanic-survival-prediction.qmd`, render the self-contained HTML report inside the container and update `docs/index.html` for GitHub Pages:
+
+```bash
 uv run quarto render
+mkdir -p docs
+cp analysis/titanic-survival-prediction.html docs/index.html
+touch docs/.nojekyll
 ```
 
-If a new Python package is needed, add it using `uv add <package>` and commit the updated `pyproject.toml` and `uv.lock` files.
+Verify that both `analysis/titanic-survival-prediction.html` and `docs/index.html` render cleanly before committing and opening your pull request.
 
 ## Working with Data and Analysis
 
@@ -86,4 +133,4 @@ All contributors are expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md
 
 ## Attribution
 
-These guidelines were developed for DSCI 522 Group 39, drawing on the course's Milestone 1 requirements and the [dplyr contributing guidelines](https://github.com/tidyverse/dplyr/blob/master/.github/CONTRIBUTING.md), and adapted to our Titanic survival prediction project.
+These guidelines were developed for DSCI 522 Group 39, drawing on the course's Milestone 1 and Milestone 2 requirements and the [dplyr contributing guidelines](https://github.com/tidyverse/dplyr/blob/master/.github/CONTRIBUTING.md), and adapted to our Titanic survival prediction project.
