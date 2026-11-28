@@ -84,6 +84,8 @@ The command runs the analysis in the container and removes the temporary contain
 
 The raw Titanic data files are included in the repository, so Kaggle API credentials are not needed to render the report.
 
+If you want to contribute to or modify the project (such as working inside the container with Positron over SSH, updating packages, or republishing the report), please see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Dependencies
 
 The Python dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned in [`uv.lock`](uv.lock). They, along with Python, `uv`, and Quarto, are provided by the project Docker image; installing them separately on the host is not required to run the analysis.
