@@ -59,22 +59,23 @@ Before starting, follow the setup steps in [`README.md`](README.md) to:
 
 ### 3. Adding or Updating Python Packages
 
-Because dependencies are baked into the Docker image at `/opt/venv`, follow these steps whenever you add or update a Python package:
+Because dependencies are baked into the Docker image at `/opt/venv`, follow these steps whenever you add or update a Python package (or modify the `Dockerfile`):
 
 1. Create and switch to a feature branch for your change.
 2. Inside the running container (in `/workspace`), add or update the package with `uv` using exact version pinning:
    ```bash
    uv add "package-name==x.y.z"
    ```
-3. Verify that both `pyproject.toml` and `uv.lock` are updated, then commit and push them to GitHub (and merge the PR into `main` once reviewed).
-4. Pushing dependency or `Dockerfile` changes to `main` automatically triggers the `.github/workflows/publish-dockerhub.yml` GitHub Actions workflow, which builds the new multi-platform image, pushes it to Docker Hub (`tahir1710/dsci-522-group-39-repository`), and commits the updated `sha-` image tag to `docker-compose.yml`.
-5. Once the workflow finishes, all team members should update their local branch and pull the new image:
+3. Verify that both `pyproject.toml` and `uv.lock` are updated, then commit and push them to your **feature branch** on GitHub.
+4. Pushing dependency or `Dockerfile` changes to any branch automatically triggers the `.github/workflows/publish-dockerhub.yml` GitHub Actions workflow. Wait for it to build and publish the new Docker image (`tahir1710/dsci-522-group-39-repository`) and commit the updated `sha-` image tag to `docker-compose.yml` **on your feature branch**.
+5. Pull the workflow's commit on your feature branch and test the new image locally:
    ```bash
    git pull
    docker compose down
    docker compose pull
    docker compose up -d
    ```
+6. Once verified, open a pull request to `main`. After a teammate reviews, approves, and merges your PR into `main`, the merge will trigger another image build and automatically update the `sha-` image tag in `docker-compose.yml` on `main`. Teammates on `main` can then run `git pull` and `docker compose pull` to get the updated environment.
 
 ### 4. Rendering the Report and Updating GitHub Pages
 
