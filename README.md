@@ -40,59 +40,53 @@ The raw Kaggle dataset files (`train.csv` and `test.csv`) are included in the re
 
 ## How to run the analysis
 
-The project uses Python, [uv](https://docs.astral.sh/uv/) to manage the Python environment, and [Quarto](https://quarto.org/) to render the report. Install [uv](https://docs.astral.sh/uv/getting-started/installation/), Python 3.12 or newer, and [Quarto](https://quarto.org/docs/get-started/) first. These tools are installed separately.
+Run the analysis in the project's Docker container. You do not need to install Python, `uv`, or Quarto on your computer. You need Docker Desktop (which includes Docker Compose) on macOS or Windows, or Docker Engine with the Docker Compose plugin on Linux.
 
-### From a terminal, clone the repository and enter its directory:
+### 1. Clone the repository
 
 ```sh
 git clone https://github.com/UBC-MDS-2026-27/DSCI-522-Group-39-Repository.git
 cd DSCI-522-Group-39-Repository
 ```
 
-### Optional: Set up Kaggle API credentials
+### 2. Prepare the host files mounted into the container
 
-You only need to follow the steps below if you want to download the raw dataset files again from Kaggle. The repository already includes `train.csv` and `test.csv`, so Kaggle API credentials are not required to run the analysis.
-
-- Create or sign in to your Kaggle account.
-- Open the Titanic competition page and join the competition.
-- Visit Kaggle API settings.
-- Create a Legacy API Key and download the kaggle.json file.
-- Place the downloaded file in the .kaggle directory inside your home directory.
-
-macOS / Linux
+The Compose configuration mounts an SSH public key and your Git configuration from your home directory. If you do not already have an SSH key at `~/.ssh/id_ed25519.pub`, create one:
 
 ```sh
-mkdir -p ~/.kaggle
-mv ~/Downloads/kaggle.json ~/.kaggle/kaggle.json
-chmod 600 ~/.kaggle/kaggle.json
+ssh-keygen -t ed25519
 ```
 
-Windows PowerShell
+Accept the default file location when prompted. If you do not already have a Git configuration file, set your name and email on the host computer so Docker can mount it:
 
 ```sh
-New-Item -ItemType Directory -Force "$HOME\.kaggle"
-Move-Item "$HOME\Downloads\kaggle.json" "$HOME\.kaggle\kaggle.json"
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
 ```
 
-Keep your API credentials private. Do not commit kaggle.json to the repository or share it with others.
+### 3. Pull the project image
 
-### Create the project environment from the committed dependency files:
+From the repository root, download the image version specified in `docker-compose.yml`:
 
 ```sh
-uv sync --locked
+docker compose pull
 ```
 
-### Render the Quarto project from its root directory:
+### 4. Render the report
+
+Render the report from the repository root:
 
 ```sh
-uv run quarto render
+docker compose run --rm analysis-env uv run quarto render
 ```
 
-Rendering requires an internet connection if the analysis needs to download the Kaggle dataset. If the raw dataset files are already present, the workflow skips the download.
+The command runs the analysis in the container and removes the temporary container when rendering finishes. The rendered report and processed data are written to the project directory on your computer.
+
+The raw Titanic data files are included in the repository, so Kaggle API credentials are not needed to render the report.
 
 ## Dependencies
 
-The project uses Python 3.12 or newer and the Python packages listed in [`pyproject.toml`](pyproject.toml), with exact resolved versions recorded in [`uv.lock`](uv.lock). Quarto must also be installed separately.
+The Python dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned in [`uv.lock`](uv.lock). They, along with Python, `uv`, and Quarto, are provided by the project Docker image; installing them separately on the host is not required to run the analysis.
 
 ## Licenses
 
